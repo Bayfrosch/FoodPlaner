@@ -1,5 +1,5 @@
 import './App.css'
-import { ShoppingItem, Checkbox } from './components/ShoppingItem';
+import { ShoppingItem } from './components/ShoppingItem';
 
 function App() {
   return (
@@ -15,7 +15,6 @@ function App() {
         name="Bananas"
         quantity={3}
       />
-      <Checkbox label="I have completed my shopping" />
     </div>
   );
 }

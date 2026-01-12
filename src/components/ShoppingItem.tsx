@@ -1,3 +1,6 @@
+import { useState } from "react";
+import '../App.css';
+
 interface ShoppingItemProps {
     id: number,
     name: string,
@@ -5,25 +8,16 @@ interface ShoppingItemProps {
 }
 
 function ShoppingItem(props: ShoppingItemProps) {
+    const [checked, setChecked] = useState(false);
+
     return (
-        <div>
+        <div className={checked ? "shopping-item checked" : "shopping-item" }
+        onClick={() => setChecked(!checked)}
+        >            
             <h3>{props.name}</h3>
             <p>Quantity: {props.quantity}</p>
         </div>
     )
 }
 
-interface CheckboxProps {
-    label: string
-}
-
-function Checkbox(props: CheckboxProps) {
-    return (
-        <label>
-            <input type="checkbox" /> 
-            {props.label} 
-        </label>
-    );
-}
-
-export { ShoppingItem, Checkbox };
+export { ShoppingItem };

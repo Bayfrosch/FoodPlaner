@@ -40,3 +40,17 @@
 .read-the-docs {
   color: #888;
 }
+
+.shopping-item {
+  text-align: left;
+  margin: 1rem 0;
+  padding: 1rem;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  transition: background-color 0.3s, color 0.3s;
+}
+
+.shopping-item.checked {
+  background-color: #d3ffd3;
+  color: #555;
+}
