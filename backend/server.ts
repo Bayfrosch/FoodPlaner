@@ -26,7 +26,8 @@ app.get('/api/health', (req, res) => {
 // Mock-Endpoint:  ALLE Items abrufen (GET)
 app.get('/api/items', async (req, res) => {
     try {
-        const result = await pool.query('SELECT * FROM shopping_items ORDER BY completed ASC, id'
+        const result = await pool.query(
+            'SELECT * FROM shopping_items ORDER BY completed ASC, id'
     );
     res.json(result.rows);
     } catch (error) {
