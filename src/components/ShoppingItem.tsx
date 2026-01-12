@@ -1,21 +1,19 @@
-import { useState } from "react";
 import '../App.css';
 
 interface ShoppingItemProps {
     id: number,
     name: string,
-    quantity: number
+    completed: boolean,
+    onToggle: () => void;
 }
 
 function ShoppingItem(props: ShoppingItemProps) {
-    const [checked, setChecked] = useState(false);
-
     return (
-        <div className={checked ? "shopping-item checked" : "shopping-item" }
-        onClick={() => setChecked(!checked)}
+        <div 
+        className={props.completed ? "shopping-item checked" : "shopping-item" }
+        onClick={() => props.onToggle()}
         >            
             <h3>{props.name}</h3>
-            <p>Quantity: {props.quantity}</p>
         </div>
     )
 }
