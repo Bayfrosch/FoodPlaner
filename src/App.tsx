@@ -37,10 +37,6 @@ function App() {
     );
   };
 
-  const handleDelete = (id: number) => {
-    setItems(items.filter(item => item.id !== id));
-  };
-
   return (
     <div>
       <div>
@@ -54,7 +50,6 @@ function App() {
             name={item.name}
             completed={item.completed}
             onToggle={() => handleToggle(item.id)}
-            onDelete={() => handleDelete(item.id)}
           />
         ))}
       </div>

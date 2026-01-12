@@ -5,7 +5,6 @@ interface ShoppingItemProps {
     name: string,
     completed: boolean,
     onToggle: () => void;
-    onDelete: () => void;
 }
 
 function ShoppingItem(props: ShoppingItemProps) {
