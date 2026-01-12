@@ -42,12 +42,26 @@
 }
 
 .shopping-item {
+  display: flex;
+  align-items: center;
   text-align: left;
+  justify-content: space-between;
   margin: 1rem 0;
   padding: 1rem;
   border: 1px solid #ccc;
   border-radius: 8px;
   transition: background-color 0.3s, color 0.3s;
+}
+
+.shopping-item h3 {
+  margin: 0;
+  flex: 1;
+}
+
+.shopping-item button {
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+  white-space: nowrap;
 }
 
 .shopping-item.checked {
