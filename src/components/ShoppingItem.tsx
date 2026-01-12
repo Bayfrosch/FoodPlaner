@@ -10,15 +10,13 @@ interface ShoppingItemProps {
 
 function ShoppingItem(props: ShoppingItemProps) {
     return (
-        <div 
-        className={props.completed ? "shopping-item checked" : "shopping-item" }
-        onClick={() => props.onToggle()}
-        >
-            <h3>{props.name}</h3>
-            <button onClick={(e) => {
-                e.stopPropagation();
-                props.onDelete();
-            }}>X</button>
+        <div className="shopping-item-wrapper">
+            <div 
+                className={props.completed ? "shopping-item checked" : "shopping-item" }
+                onClick={() => props.onToggle()}
+            >
+                <h3>{props.name}</h3>
+            </div>
         </div>
     )
 }

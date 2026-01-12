@@ -9,22 +9,20 @@ interface ShoppingItemData {
 }
 
 function App() {
-  const [items, setItems] = useState<ShoppingItemData[]>([
-    { id: 1, name: "Brot", completed: false },
-    { id: 2, name: "Milch", completed: true },
-    { id: 3, name: "Eier", completed: false }
-  ]);
+  const [items, setItems] = useState<ShoppingItemData[]>([]);
 
   const [inputValue, setInputValue] = useState("");
+  const [nextId, setNextId] = useState(1);
 
   const handleSubmit = () => {
     if (inputValue.trim() === "") return;
     const newItem: ShoppingItemData = {
-      id: items.length + 1,
+      id: nextId,
       name: inputValue,
       completed: false
     };
     setItems([...items, newItem]);
+    setNextId(nextId + 1);
     setInputValue("");
   };
 
@@ -38,15 +36,18 @@ function App() {
       })
     );
   };
+
   const handleDelete = (id: number) => {
     setItems(items.filter(item => item.id !== id));
   };
-  
+
   return (
     <div>
       <div>
         <h1>Shopping List</h1>
-        {items.map(item => (
+        {items
+        .sort((a, b) => Number(a.completed) - Number(b.completed))
+        .map(item => (
           <ShoppingItem 
             key={item.id}
             id={item.id}
@@ -66,7 +67,7 @@ function App() {
         />
         <br/>
         <button onClick={handleSubmit}>Hinzufügen</button>
-        <button onClick={() => setItems([])}>Liste leeren</button>
+        <button onClick={() => setItems(items.filter(item => !item.completed))}>Fertige leeren</button>
       </div>
     </div>
   );

@@ -41,30 +41,58 @@
   color: #888;
 }
 
-.shopping-item {
+.shopping-item-wrapper {
   display: flex;
   align-items: center;
-  text-align: left;
-  justify-content: space-between;
+  gap: 1rem;
   margin: 1rem 0;
+}
+
+.shopping-item {
+  flex: 1;
+  text-align: left;
   padding: 1rem;
   border: 1px solid #ccc;
   border-radius: 8px;
   transition: background-color 0.3s, color 0.3s;
+  cursor: pointer;
 }
 
 .shopping-item h3 {
   margin: 0;
-  flex: 1;
-}
-
-.shopping-item button {
-  padding: 0.5rem 1rem;
-  cursor: pointer;
-  white-space: nowrap;
 }
 
 .shopping-item.checked {
   background-color: #d3ffd3;
   color: #555;
+}
+
+.delete-button {
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+  white-space: nowrap;
+  border: 1px solid #dc3545;
+  background-color: #dc3545;
+  color: white;
+  border-radius: 8px;
+  transition: background-color 0.3s;
+}
+
+.delete-button:hover {
+  background-color: #c82333;
+}
+
+input[type="text"] {
+  width: 100%;
+  max-width: 500px;
+  padding: 0.75rem 1rem;
+  font-size: 1.1rem;
+  border: 2px solid #ccc;
+  border-radius: 8px;
+  box-sizing: border-box;
+}
+
+input[type="text"]:focus {
+  outline: none;
+  border-color: #646cff;
 }
