@@ -1014,15 +1014,17 @@ app.post('/api/recipes/:id/add-to-list', authMiddleware, async (req: AuthRequest
       return res.status(400).json({ error: 'listId is required' });
     }
 
-    // Check recipe ownership
+    // Check recipe ownership and get recipe name
     const recipeCheck = await pool.query(
-      `SELECT id FROM recipes WHERE id = $1 AND owner_id = $2`,
+      `SELECT id, title FROM recipes WHERE id = $1 AND owner_id = $2`,
       [recipeId, userId]
     );
 
     if (recipeCheck.rows.length === 0) {
       return res.status(403).json({ error: 'Recipe not found' });
     }
+
+    const recipeName = recipeCheck.rows[0].title;
 
     // Check list access (owner or collaborator)
     const listAccessCheck = await pool.query(
@@ -1042,12 +1044,13 @@ app.post('/api/recipes/:id/add-to-list', authMiddleware, async (req: AuthRequest
       [recipeId]
     );
 
-    // Add items to shopping list
+    // Add items to shopping list with recipe name
     const itemsToAdd = itemsResult.rows;
     for (const item of itemsToAdd) {
+      const itemNameWithRecipe = `${item.name} (${recipeName})`;
       await pool.query(
         `INSERT INTO shopping_list_items (list_id, name, completed) VALUES ($1, $2, FALSE)`,
-        [listId, item.name]
+        [listId, itemNameWithRecipe]
       );
     }
 
