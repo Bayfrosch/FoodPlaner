@@ -24,9 +24,6 @@ export default function ListCard({ list, onDelete }: ListCardProps) {
       
       <div className="relative">
         <div className="flex items-start gap-3 mb-4">
-          <div className="w-12 h-12 bg-gradient-to-br from-purple-500/30 to-purple-700/30 border border-purple-500/50 rounded-2xl flex items-center justify-center flex-shrink-0 group-hover:border-purple-400 transition-all">
-            <span className="text-2xl">📋</span>
-          </div>
           <div className="flex-1 min-w-0">
             <h3 className="text-lg font-bold text-white group-hover:text-purple-300 transition line-clamp-2 mb-1">{list.title}</h3>
             {list.description && (

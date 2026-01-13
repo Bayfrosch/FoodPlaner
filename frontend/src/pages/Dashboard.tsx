@@ -164,14 +164,6 @@ export default function Dashboard() {
                     </div>
                     ) : userLists.length === 0 ? (
                     <div className="text-center py-20">
-                        <div className="relative inline-block mb-6">
-                            <div className="w-24 h-24 bg-gradient-to-br from-purple-500/10 to-purple-700/10 border-2 border-purple-500/20 rounded-3xl flex items-center justify-center mx-auto">
-                                <span className="text-5xl">📝</span>
-                            </div>
-                            <div className="absolute -top-2 -right-2 w-8 h-8 bg-purple-500 rounded-full flex items-center justify-center shadow-lg">
-                                <span className="text-white text-xl font-bold">0</span>
-                            </div>
-                        </div>
                         <h2 className="text-2xl font-bold text-white mb-2">Keine Listen vorhanden</h2>
                         <p className="text-gray-400 mb-8">Erstelle deine erste Einkaufsliste</p>
                         <button

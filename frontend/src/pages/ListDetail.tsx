@@ -149,9 +149,6 @@ export default function ListDetail() {
                         </button>
                     </div>
                     <div className="flex items-center justify-center gap-4">
-                        <div className="w-14 h-14 bg-gradient-to-br from-purple-500/20 to-purple-700/20 border border-purple-500/30 rounded-2xl flex items-center justify-center flex-shrink-0">
-                            <span className="text-2xl">📋</span>
-                        </div>
                         <div className="flex-1 text-center max-w-md">
                             <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent mb-2">{list.title}</h1>
                             {list.description && (
@@ -176,36 +173,6 @@ export default function ListDetail() {
                         </button>
                     </div>
                 )}
-
-                {/* Progress Bar */}
-                <div className="mb-6 bg-gradient-to-br from-[#14141f] to-[#1a1a2e] border border-[#2d2d3f] p-6 rounded-2xl shadow-xl">
-                    <div className="flex justify-between items-center mb-4">
-                        <div className="flex items-center gap-2">
-                            <svg className="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                            <span className="font-semibold text-white">Fortschritt</span>
-                        </div>
-                        <span className="text-sm font-medium">
-                            <span className="text-purple-400">{completedCount}</span>
-                            <span className="text-gray-500"> / {items.length}</span>
-                        </span>
-                    </div>
-                    <div className="relative w-full bg-[#1a1a2e] rounded-full h-3 overflow-hidden">
-                        <div className="absolute inset-0 bg-gradient-to-r from-purple-500/20 to-purple-600/20"></div>
-                        <div
-                            className="relative bg-gradient-to-r from-purple-500 to-purple-600 h-3 rounded-full transition-all duration-500 shadow-lg shadow-purple-500/50"
-                            style={{
-                                width: items.length === 0 ? '0%' : `${(completedCount / items.length) * 100}%`,
-                            }}
-                        />
-                    </div>
-                    {items.length > 0 && (
-                        <p className="text-xs text-gray-500 mt-2 text-center">
-                            {Math.round((completedCount / items.length) * 100)}% abgeschlossen
-                        </p>
-                    )}
-                </div>
 
                 {/* Add Item Form */}
                 <form onSubmit={handleAddItem} className="mb-6">
@@ -234,9 +201,6 @@ export default function ListDetail() {
                 {/* Items List */}
                 {items.length === 0 ? (
                     <div className="text-center py-20 bg-gradient-to-br from-[#14141f] to-[#1a1a2e] border border-[#2d2d3f] rounded-2xl">
-                        <div className="w-20 h-20 bg-purple-500/10 border-2 border-purple-500/20 rounded-3xl flex items-center justify-center mx-auto mb-4">
-                            <span className="text-4xl">📝</span>
-                        </div>
                         <h3 className="text-lg font-semibold text-white mb-2">Liste ist leer</h3>
                         <p className="text-gray-400 text-sm">Füge deinen ersten Artikel hinzu</p>
                     </div>
