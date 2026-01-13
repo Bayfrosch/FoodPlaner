@@ -769,6 +769,301 @@ app.delete('/api/lists/:listId/collaborators/:collaboratorId', authMiddleware, a
   }
 });
 
+// ============================================
+// RECIPES API
+// ============================================
+
+// Get all recipes for the authenticated user
+app.get('/api/recipes', authMiddleware, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.userId;
+
+    const result = await pool.query(
+      `SELECT id, title, description, created_at FROM recipes WHERE owner_id = $1 ORDER BY created_at DESC`,
+      [userId]
+    );
+
+    // Get items for each recipe
+    const recipesWithItems = await Promise.all(
+      result.rows.map(async (recipe) => {
+        const itemsResult = await pool.query(
+          `SELECT id, name FROM recipe_items WHERE recipe_id = $1 ORDER BY created_at`,
+          [recipe.id]
+        );
+        return {
+          ...recipe,
+          items: itemsResult.rows
+        };
+      })
+    );
+
+    res.json(recipesWithItems);
+  } catch (error) {
+    console.error('Error:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// Get single recipe with items
+app.get('/api/recipes/:id', authMiddleware, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.userId;
+    const recipeId = parseInt(req.params.id as string);
+
+    const recipeResult = await pool.query(
+      `SELECT id, title, description, created_at FROM recipes WHERE id = $1 AND owner_id = $2`,
+      [recipeId, userId]
+    );
+
+    if (recipeResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Recipe not found' });
+    }
+
+    const itemsResult = await pool.query(
+      `SELECT id, name FROM recipe_items WHERE recipe_id = $1 ORDER BY created_at`,
+      [recipeId]
+    );
+
+    const recipe = {
+      ...recipeResult.rows[0],
+      items: itemsResult.rows
+    };
+
+    res.json(recipe);
+  } catch (error) {
+    console.error('Error:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// Create new recipe
+app.post('/api/recipes', authMiddleware, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.userId;
+    const { title, description, items } = req.body;
+
+    if (!title) {
+      return res.status(400).json({ error: 'Title is required' });
+    }
+
+    const recipeResult = await pool.query(
+      `INSERT INTO recipes (owner_id, title, description) VALUES ($1, $2, $3) RETURNING id, title, description, created_at`,
+      [userId, title, description || null]
+    );
+
+    const recipeId = recipeResult.rows[0].id;
+
+    // Add items if provided
+    if (items && Array.isArray(items) && items.length > 0) {
+      const itemValues = items.map(item => `(${recipeId}, '${item.name.replace(/'/g, "''")}')`).join(',');
+      await pool.query(
+        `INSERT INTO recipe_items (recipe_id, name) VALUES ${itemValues}`
+      );
+    }
+
+    const recipe = {
+      ...recipeResult.rows[0],
+      items: items || []
+    };
+
+    res.status(201).json(recipe);
+  } catch (error) {
+    console.error('Error:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// Update recipe
+app.put('/api/recipes/:id', authMiddleware, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.userId;
+    const recipeId = parseInt(req.params.id as string);
+    const { title, description } = req.body;
+
+    // Check ownership
+    const ownerCheck = await pool.query(
+      `SELECT id FROM recipes WHERE id = $1 AND owner_id = $2`,
+      [recipeId, userId]
+    );
+
+    if (ownerCheck.rows.length === 0) {
+      return res.status(403).json({ error: 'Only owner can update recipe' });
+    }
+
+    const result = await pool.query(
+      `UPDATE recipes SET title = $1, description = $2 WHERE id = $3 RETURNING id, title, description, created_at`,
+      [title, description || null, recipeId]
+    );
+
+    // Get items
+    const itemsResult = await pool.query(
+      `SELECT id, name FROM recipe_items WHERE recipe_id = $1 ORDER BY created_at`,
+      [recipeId]
+    );
+
+    const recipe = {
+      ...result.rows[0],
+      items: itemsResult.rows
+    };
+
+    res.json(recipe);
+  } catch (error) {
+    console.error('Error:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// Delete recipe
+app.delete('/api/recipes/:id', authMiddleware, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.userId;
+    const recipeId = parseInt(req.params.id as string);
+
+    // Check ownership
+    const ownerCheck = await pool.query(
+      `SELECT id FROM recipes WHERE id = $1 AND owner_id = $2`,
+      [recipeId, userId]
+    );
+
+    if (ownerCheck.rows.length === 0) {
+      return res.status(403).json({ error: 'Only owner can delete recipe' });
+    }
+
+    await pool.query(
+      `DELETE FROM recipes WHERE id = $1`,
+      [recipeId]
+    );
+
+    res.json({ message: 'Recipe deleted' });
+  } catch (error) {
+    console.error('Error:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// Add item to recipe
+app.post('/api/recipes/:id/items', authMiddleware, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.userId;
+    const recipeId = parseInt(req.params.id as string);
+    const { name } = req.body;
+
+    if (!name) {
+      return res.status(400).json({ error: 'Name is required' });
+    }
+
+    // Check ownership
+    const ownerCheck = await pool.query(
+      `SELECT id FROM recipes WHERE id = $1 AND owner_id = $2`,
+      [recipeId, userId]
+    );
+
+    if (ownerCheck.rows.length === 0) {
+      return res.status(403).json({ error: 'Only owner can add items' });
+    }
+
+    const result = await pool.query(
+      `INSERT INTO recipe_items (recipe_id, name) VALUES ($1, $2) RETURNING id, name`,
+      [recipeId, name]
+    );
+
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Error:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// Delete item from recipe
+app.delete('/api/recipes/:id/items/:itemId', authMiddleware, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.userId;
+    const recipeId = parseInt(req.params.id as string);
+    const itemId = parseInt(req.params.itemId as string);
+
+    // Check ownership
+    const ownerCheck = await pool.query(
+      `SELECT r.id FROM recipes r WHERE r.id = $1 AND r.owner_id = $2`,
+      [recipeId, userId]
+    );
+
+    if (ownerCheck.rows.length === 0) {
+      return res.status(403).json({ error: 'Only owner can delete items' });
+    }
+
+    await pool.query(
+      `DELETE FROM recipe_items WHERE id = $1 AND recipe_id = $2`,
+      [itemId, recipeId]
+    );
+
+    res.json({ message: 'Item deleted' });
+  } catch (error) {
+    console.error('Error:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// Add recipe items to shopping list
+app.post('/api/recipes/:id/add-to-list', authMiddleware, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.userId;
+    const recipeId = parseInt(req.params.id as string);
+    const { listId } = req.body;
+
+    if (!listId) {
+      return res.status(400).json({ error: 'listId is required' });
+    }
+
+    // Check recipe ownership
+    const recipeCheck = await pool.query(
+      `SELECT id FROM recipes WHERE id = $1 AND owner_id = $2`,
+      [recipeId, userId]
+    );
+
+    if (recipeCheck.rows.length === 0) {
+      return res.status(403).json({ error: 'Recipe not found' });
+    }
+
+    // Check list access (owner or collaborator)
+    const listAccessCheck = await pool.query(
+      `SELECT id FROM shopping_lists WHERE id = $1 AND owner_id = $2
+       UNION
+       SELECT list_id as id FROM list_collaborators WHERE list_id = $1 AND user_id = $2`,
+      [listId, userId]
+    );
+
+    if (listAccessCheck.rows.length === 0) {
+      return res.status(403).json({ error: 'No access to list' });
+    }
+
+    // Get all items from recipe
+    const itemsResult = await pool.query(
+      `SELECT name FROM recipe_items WHERE recipe_id = $1`,
+      [recipeId]
+    );
+
+    // Add items to shopping list
+    const itemsToAdd = itemsResult.rows;
+    for (const item of itemsToAdd) {
+      await pool.query(
+        `INSERT INTO shopping_list_items (list_id, name, completed) VALUES ($1, $2, FALSE)`,
+        [listId, item.name]
+      );
+    }
+
+    // Broadcast to list collaborators
+    await broadcastToListCollaborators(listId, {
+      type: 'LIST_UPDATED',
+      listId
+    });
+
+    res.json({ message: 'Items added to list', count: itemsToAdd.length });
+  } catch (error) {
+    console.error('Error:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
 // Server starten
 const startServer = async () => {
   await initializeDatabase();

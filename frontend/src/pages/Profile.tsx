@@ -113,18 +113,19 @@ export default function Profile() {
       {/* Header */}
       <header className="bg-gradient-to-b from-[#14141f] to-transparent border-b border-[#2d2d3f]/50">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6">
-          <div className="flex justify-between items-center">
+          <div className="flex justify-between items-center gap-4">
             <button
               onClick={() => navigate('/dashboard')}
-              className="inline-flex items-center gap-2 text-purple-400 hover:text-purple-300 text-sm font-medium transition-all group"
+              className="inline-flex items-center gap-2 text-purple-400 hover:text-purple-300 text-sm font-medium transition-all group flex-shrink-0"
             >
               <svg className="w-4 h-4 group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
               </svg>
-              Zurück zum Dashboard
+              <span className="hidden sm:inline">Zurück zum Dashboard</span>
+              <span className="sm:hidden">Zurück</span>
             </button>
-            <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">Profil</h1>
-            <div className="w-20"></div>
+            <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent text-center flex-1">Profil</h1>
+            <div className="w-0 sm:w-20"></div>
           </div>
         </div>
       </header>

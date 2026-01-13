@@ -25,7 +25,7 @@ const initDb = async () => {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
-    console.log('✓ users Tabelle erstellt');
+    console.log('users Tabelle erstellt');
 
     // Erstelle shopping_lists Tabelle
     await pool.query(`
@@ -38,7 +38,7 @@ const initDb = async () => {
         FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE
       )
     `);
-    console.log('✓ shopping_lists Tabelle erstellt');
+    console.log('shopping_lists Tabelle erstellt');
 
     // Erstelle shopping_list_items Tabelle
     await pool.query(`
@@ -51,7 +51,7 @@ const initDb = async () => {
         FOREIGN KEY (list_id) REFERENCES shopping_lists(id) ON DELETE CASCADE
       )
     `);
-    console.log('✓ shopping_list_items Tabelle erstellt');
+    console.log('shopping_list_items Tabelle erstellt');
 
     // Erstelle list_collaborators Tabelle
     await pool.query(`
@@ -66,12 +66,37 @@ const initDb = async () => {
         UNIQUE(list_id, user_id)
       )
     `);
-    console.log('✓ list_collaborators Tabelle erstellt');
+    console.log('list_collaborators Tabelle erstellt');
 
-    console.log('✅ Datenbank erfolgreich initialisiert!');
+    // Erstelle recipes Tabelle
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS recipes (
+        id SERIAL PRIMARY KEY,
+        owner_id INTEGER NOT NULL,
+        title VARCHAR(255) NOT NULL,
+        description TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE
+      )
+    `);
+    console.log('recipes Tabelle erstellt');
+
+    // Erstelle recipe_items Tabelle
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS recipe_items (
+        id SERIAL PRIMARY KEY,
+        recipe_id INTEGER NOT NULL,
+        name VARCHAR(255) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (recipe_id) REFERENCES recipes(id) ON DELETE CASCADE
+      )
+    `);
+    console.log('recipe_items Tabelle erstellt');
+
+    console.log(' Datenbank erfolgreich initialisiert!');
     process.exit(0);
   } catch (error) {
-    console.error('❌ Fehler beim Initialisieren der Datenbank:', error);
+    console.error('Fehler beim Initialisieren der Datenbank:', error);
     process.exit(1);
   }
 };

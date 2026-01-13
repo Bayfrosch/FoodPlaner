@@ -137,3 +137,42 @@ export const collaborators = {
   remove: (listId: number, collaboratorId: number) =>
     apiCall(`/lists/${listId}/collaborators/${collaboratorId}`, { method: 'DELETE' }),
 };
+
+// ============================================
+// RECIPES APIs (Rezepte)
+// ============================================
+export const recipes = {
+  getAll: () => apiCall('/recipes'),
+
+  getById: (id: number) => apiCall(`/recipes/${id}`),
+
+  create: (title: string, description: string = '', items: Array<{ name: string }> = []) =>
+    apiCall('/recipes', {
+      method: 'POST',
+      body: JSON.stringify({ title, description, items }),
+    }),
+
+  update: (id: number, title: string, description: string) =>
+    apiCall(`/recipes/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ title, description }),
+    }),
+
+  delete: (id: number) =>
+    apiCall(`/recipes/${id}`, { method: 'DELETE' }),
+
+  addItem: (id: number, name: string) =>
+    apiCall(`/recipes/${id}/items`, {
+      method: 'POST',
+      body: JSON.stringify({ name }),
+    }),
+
+  deleteItem: (id: number, itemId: number) =>
+    apiCall(`/recipes/${id}/items/${itemId}`, { method: 'DELETE' }),
+
+  addToList: (id: number, listId: number) =>
+    apiCall(`/recipes/${id}/add-to-list`, {
+      method: 'POST',
+      body: JSON.stringify({ listId }),
+    }),
+};
