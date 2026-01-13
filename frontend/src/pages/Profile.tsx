@@ -134,17 +134,6 @@ export default function Profile() {
         <div className="w-full max-w-2xl">
           {/* Benutzerinformationen */}
           <div className="bg-gradient-to-br from-[#14141f]/90 to-[#1a1a2e]/90 backdrop-blur-sm border border-purple-500/30 rounded-3xl p-8 mb-8 shadow-2xl shadow-purple-500/20">
-            <div className="flex items-center gap-4 mb-6">
-              <div className="w-16 h-16 bg-gradient-to-br from-purple-500/30 to-purple-700/30 border border-purple-500/50 rounded-2xl flex items-center justify-center">
-                <svg className="w-8 h-8 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                </svg>
-              </div>
-              <div>
-                <h2 className="text-xl font-bold text-white">{user.username}</h2>
-                <p className="text-gray-400 text-sm">Mitglied seit {new Date(user.id).getFullYear()}</p>
-              </div>
-            </div>
             <div className="border-t border-purple-500/20 pt-6">
               <div className="mb-4">
                 <label className="text-gray-400 text-sm">Benutzername</label>

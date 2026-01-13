@@ -90,8 +90,8 @@ export default function Dashboard() {
             <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6">
                 <div className="flex justify-center items-center relative">
                     <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-purple-700 rounded-2xl flex items-center justify-center shadow-lg shadow-purple-500/30">
-                            <img src="/FoodPlaner.png" alt="FoodPlaner Logo" className="w-8 h-8" />
+                        <div>
+                            <img src="/FoodPlaner.png" alt="FoodPlaner Logo" className="w-12 h-12 rounded-2xl" />
                         </div>
                         <div className="text-center">
                             <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">FoodPlaner</h1>
