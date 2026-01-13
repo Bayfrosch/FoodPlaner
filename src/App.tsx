@@ -34,16 +34,17 @@ function App() {
     }
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (inputValue.trim() === "") return;
-    const newItem: ShoppingItemData = {
-      id: nextId,
-      name: inputValue,
-      completed: false
-    };
-    setItems([...items, newItem]);
-    setNextId(nextId + 1);
-    setInputValue("");
+    
+    try {
+      const newItem = await createItem(inputValue);
+      setItems([...items, newItem]);
+      setInputValue("");
+    } catch (err) {
+      setError('Fehler beim Erstellen des Items');
+      console.error(err);
+    }
   };
 
   const handleToggle = async (id: number) => {
@@ -62,36 +63,16 @@ function App() {
     }
   };
 
-  const handleAddItem = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (! newItemName.trim()) return;
-
+  const handleClearCompleted = async () => {
     try {
-      const newItem = await createItem(newItemName);
-      setItems([...items, newItem]);
-      setNewItemName('');
+      // alle fertigen Items löschen
+      const completedItems = items.filter(item => item.completed);
+      // alle DELETE calls parallel ausführen
+      await Promise.all(completedItems.map(item => deleteItem(item.id)));
+      // State updaten
+      setItems(items.filter(item => !item.completed));
     } catch (err) {
-      setError('Fehler beim Erstellen des Items');
-      console.error(err);
-    }
-  };
-
-  const handleDeleteItem = async (id: number) => {
-    try {
-      await deleteItem(id);
-      setItems(items.filter(item => item.id !== id));
-    } catch (err) {
-      setError('Fehler beim Löschen des Items');
-      console.error(err);
-    }
-  };
-
-  const handleToggleItem = async (id: number, completed: boolean) => {
-    try {
-      const updatedItem = await updateItem(id, ! completed);
-      setItems(items.map(item => item.id === id ? updatedItem : item));
-    } catch (err) {
-      setError('Fehler beim Aktualisieren des Items');
+      setError('Fehler beim Löschen der Items');
       console.error(err);
     }
   };
@@ -124,7 +105,7 @@ function App() {
         />
         <br/>
         <button onClick={handleSubmit}>Hinzufügen</button>
-        <button onClick={() => setItems(items.filter(item => !item.completed))}>Fertige leeren</button>
+        <button onClick={handleClearCompleted}>Fertige leeren</button>
       </div>
     </div>
   );
