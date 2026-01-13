@@ -26,6 +26,64 @@ const pool = new Pool({
   database: process.env.DB_NAME
 });
 
+// Initialisiere Datenbank beim Start
+const initializeDatabase = async () => {
+  try {
+    // Erstelle users Tabelle
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS users (
+        id SERIAL PRIMARY KEY,
+        email VARCHAR(255) UNIQUE NOT NULL,
+        username VARCHAR(255) NOT NULL,
+        password_hash VARCHAR(255) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Erstelle shopping_lists Tabelle
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS shopping_lists (
+        id SERIAL PRIMARY KEY,
+        owner_id INTEGER NOT NULL,
+        title VARCHAR(255) NOT NULL,
+        description TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE
+      )
+    `);
+
+    // Erstelle shopping_list_items Tabelle
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS shopping_list_items (
+        id SERIAL PRIMARY KEY,
+        list_id INTEGER NOT NULL,
+        name VARCHAR(255) NOT NULL,
+        completed BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (list_id) REFERENCES shopping_lists(id) ON DELETE CASCADE
+      )
+    `);
+
+    // Erstelle list_collaborators Tabelle
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS list_collaborators (
+        id SERIAL PRIMARY KEY,
+        list_id INTEGER NOT NULL,
+        user_id INTEGER NOT NULL,
+        role VARCHAR(50) DEFAULT 'viewer',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (list_id) REFERENCES shopping_lists(id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        UNIQUE(list_id, user_id)
+      )
+    `);
+
+    console.log('✓ Datenbank-Tabellen sind ready');
+  } catch (error) {
+    console.error('Fehler beim Initialisieren der Datenbank:', error);
+  }
+};
+
 // Health Check
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'Server läuft!' });
@@ -61,7 +119,16 @@ app.post('/api/auth/register', async (req: AuthRequest, res) => {
       [email, username, hashedPassword]
     );
 
-    res.status(201).json(result.rows[0]);
+    const user = result.rows[0];
+
+    // Token erstellen
+    const token = jwt.sign(
+      { userId: user.id },
+      process.env.JWT_SECRET || '',
+      { expiresIn: '7d' }
+    );
+
+    res.status(201).json({ token, userId: user.id, ...user });
   } catch (error) {
     console.error('Register error:', error);
     res.status(500).json({ error: 'Internal Server Error' });
@@ -151,6 +218,32 @@ app.get('/api/lists', authMiddleware, async (req: AuthRequest, res) => {
   }
 });
 
+// GET einzelne Liste
+app.get('/api/lists/:listId', authMiddleware, async (req: AuthRequest, res) => {
+  try {
+    const { listId } = req.params;
+
+    const result = await pool.query(
+      `SELECT l.* FROM shopping_lists l
+       WHERE l.id = $1 
+       AND (l.owner_id = $2 
+       OR l.id IN (
+         SELECT list_id FROM list_collaborators WHERE user_id = $2
+       ))`,
+      [listId, req.userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Liste nicht gefunden' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
 // POST neue Liste
 app.post('/api/lists', authMiddleware, async (req:  AuthRequest, res) => {
   try {
@@ -166,6 +259,78 @@ app.post('/api/lists', authMiddleware, async (req:  AuthRequest, res) => {
     );
 
     res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Error:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// PUT Liste aktualisieren
+app.put('/api/lists/:listId', authMiddleware, async (req: AuthRequest, res) => {
+  try {
+    const { listId } = req.params;
+    const { title, description } = req.body;
+
+    if (!title) {
+      return res.status(400).json({ error: 'Title erforderlich' });
+    }
+
+    // Prüfe ob User Owner ist
+    const ownerCheck = await pool.query(
+      'SELECT owner_id FROM shopping_lists WHERE id = $1',
+      [listId]
+    );
+
+    if (ownerCheck.rows.length === 0 || ownerCheck.rows[0].owner_id !== req.userId) {
+      return res.status(403).json({ error: 'Keine Berechtigung' });
+    }
+
+    const result = await pool.query(
+      'UPDATE shopping_lists SET title = $1, description = $2 WHERE id = $3 RETURNING *',
+      [title, description || null, listId]
+    );
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// DELETE Liste löschen
+app.delete('/api/lists/:listId', authMiddleware, async (req: AuthRequest, res) => {
+  try {
+    const { listId } = req.params;
+
+    // Prüfe ob User Owner ist
+    const ownerCheck = await pool.query(
+      'SELECT owner_id FROM shopping_lists WHERE id = $1',
+      [listId]
+    );
+
+    if (ownerCheck.rows.length === 0 || ownerCheck.rows[0].owner_id !== req.userId) {
+      return res.status(403).json({ error: 'Keine Berechtigung' });
+    }
+
+    // Lösche alle Items
+    await pool.query(
+      'DELETE FROM shopping_list_items WHERE list_id = $1',
+      [listId]
+    );
+
+    // Lösche alle Collaborators
+    await pool.query(
+      'DELETE FROM list_collaborators WHERE list_id = $1',
+      [listId]
+    );
+
+    // Lösche Liste
+    await pool.query(
+      'DELETE FROM shopping_lists WHERE id = $1',
+      [listId]
+    );
+
+    res.json({ message: 'Liste gelöscht' });
   } catch (error) {
     console.error('Error:', error);
     res.status(500).json({ error: 'Internal Server Error' });
@@ -193,7 +358,7 @@ app.get('/api/lists/:listId/items', authMiddleware, async (req: AuthRequest, res
     }
 
     const result = await pool.query(
-      'SELECT * FROM shopping_items WHERE list_id = $1 ORDER BY completed ASC, id',
+      'SELECT * FROM shopping_list_items WHERE list_id = $1 ORDER BY completed ASC, id',
       [listId]
     );
 
@@ -214,12 +379,12 @@ app.post('/api/lists/:listId/items', authMiddleware, async (req: AuthRequest, re
       return res.status(400).json({ error: 'Name erforderlich' });
     }
 
-    // Prüfe ob User Editor ist
+    // Prüfe ob User Editor ist (Owner oder Collaborator)
     const accessCheck = await pool.query(
-      `SELECT role FROM shopping_lists 
+      `SELECT id FROM shopping_lists 
        WHERE id = $1 AND owner_id = $2
        UNION
-       SELECT role FROM list_collaborators 
+       SELECT list_id FROM list_collaborators 
        WHERE list_id = $1 AND user_id = $2`,
       [listId, req.userId]
     );
@@ -229,7 +394,7 @@ app.post('/api/lists/:listId/items', authMiddleware, async (req: AuthRequest, re
     }
 
     const result = await pool.query(
-      'INSERT INTO shopping_items (list_id, name, completed) VALUES ($1, $2, $3) RETURNING *',
+      'INSERT INTO shopping_list_items (list_id, name, completed) VALUES ($1, $2, $3) RETURNING *',
       [listId, name, false]
     );
 
@@ -247,10 +412,10 @@ app.delete('/api/lists/:listId/items/:itemId', authMiddleware, async (req:  Auth
 
     // Prüfe Zugriff
     const accessCheck = await pool.query(
-      `SELECT role FROM shopping_lists 
+      `SELECT id FROM shopping_lists 
        WHERE id = $1 AND owner_id = $2
        UNION
-       SELECT role FROM list_collaborators 
+       SELECT list_id FROM list_collaborators 
        WHERE list_id = $1 AND user_id = $2`,
       [listId, req.userId]
     );
@@ -260,7 +425,7 @@ app.delete('/api/lists/:listId/items/:itemId', authMiddleware, async (req:  Auth
     }
 
     const result = await pool.query(
-      'DELETE FROM shopping_items WHERE id = $1 AND list_id = $2 RETURNING *',
+      'DELETE FROM shopping_list_items WHERE id = $1 AND list_id = $2 RETURNING *',
       [itemId, listId]
     );
 
@@ -283,10 +448,10 @@ app.put('/api/lists/:listId/items/:itemId', authMiddleware, async (req: AuthRequ
 
     // Prüfe Zugriff
     const accessCheck = await pool.query(
-      `SELECT role FROM shopping_lists 
+      `SELECT id FROM shopping_lists 
        WHERE id = $1 AND owner_id = $2
        UNION
-       SELECT role FROM list_collaborators 
+       SELECT list_id FROM list_collaborators 
        WHERE list_id = $1 AND user_id = $2`,
       [listId, req.userId]
     );
@@ -296,7 +461,7 @@ app.put('/api/lists/:listId/items/:itemId', authMiddleware, async (req: AuthRequ
     }
 
     const result = await pool.query(
-      'UPDATE shopping_items SET completed = $1 WHERE id = $2 AND list_id = $3 RETURNING *',
+      'UPDATE shopping_list_items SET completed = $1 WHERE id = $2 AND list_id = $3 RETURNING *',
       [completed, itemId, listId]
     );
 
@@ -422,6 +587,11 @@ app.delete('/api/lists/:listId/collaborators/:collaboratorId', authMiddleware, a
 });
 
 // Server starten
-app.listen(PORT, () => {
-  console.log(`Server läuft auf http://localhost:${PORT}`);
-});
+const startServer = async () => {
+  await initializeDatabase();
+  app.listen(PORT, () => {
+    console.log(`Server läuft auf http://localhost:${PORT}`);
+  });
+};
+
+startServer();

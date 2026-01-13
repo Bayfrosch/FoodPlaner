@@ -32,61 +32,68 @@ export default function Login() {
     };
     
     return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center p-4">
-      <div className="bg-white rounded-lg shadow-xl p-8 w-full max-w-md">
-        <h1 className="text-3xl font-bold text-gray-800 mb-2 text-center">
-          🛒 FoodPlaner
-        </h1>
-        <p className="text-gray-600 text-center mb-6">Einkaufslisten verwalten leicht gemacht</p>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-gray-700 font-medium mb-2">Email</label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="deine@email.com"
-              required
-            />
+    <div className="min-h-screen bg-gradient-to-br from-[#0a0a0f] via-[#1a1a2e] to-[#0a0a0f] flex items-center justify-center p-4">
+      <div className="w-full max-w-md">
+        <div className="text-center mb-12">
+          <div className="inline-flex items-center justify-center w-24 h-24 bg-gradient-to-br from-purple-500 via-purple-600 to-purple-700 rounded-3xl mb-8 shadow-2xl shadow-purple-500/50 hover:shadow-purple-500/70 transition-shadow">
+            <img src="/FoodPlaner.png" alt="FoodPlaner Logo" className="w-16 h-16" />
           </div>
+          <h1 className="text-5xl font-black bg-gradient-to-r from-white via-purple-200 to-white bg-clip-text text-transparent mb-3">
+            FoodPlaner
+          </h1>
+          <p className="text-gray-400 text-lg">Einkaufslisten verwalten leicht gemacht</p>
+        </div>
 
-          <div>
-            <label className="block text-gray-700 font-medium mb-2">Passwort</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="••••••••"
-              required
-            />
-          </div>
-
-          {error && (
-            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
-              {error}
+        <div className="bg-gradient-to-br from-[#14141f]/80 to-[#1a1a2e]/80 backdrop-blur-xl border border-purple-500/20 rounded-3xl p-8 shadow-2xl shadow-purple-500/20 hover:shadow-purple-500/30 transition-shadow">
+          <form onSubmit={handleSubmit} className="space-y-5">
+            <div>
+              <label className="block text-gray-300 text-sm font-medium mb-2">Email</label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full px-4 py-3 bg-[#1a1a2e] border border-[#2d2d3f] rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition-all"
+                placeholder="deine@email.com"
+                required
+              />
             </div>
-          )}
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-blue-500 hover:bg-blue-600 disabled:bg-gray-400 text-white font-bold py-2 px-4 rounded-lg transition"
-          >
-            {loading ?  'Wird eingeloggt...' : 'Einloggen'}
-          </button>
+            <div>
+              <label className="block text-gray-300 text-sm font-medium mb-2">Passwort</label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full px-4 py-3 bg-[#1a1a2e] border border-[#2d2d3f] rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition-all"
+                placeholder="••••••••"
+                required
+              />
+            </div>
 
-          <div className="border-t pt-4 text-center">
-            <p className="text-gray-600">
-              Noch keinen Account? {' '}
-              <a href="/register" className="text-blue-500 hover:underline font-bold">
-                Hier registrieren
-              </a>
-            </p>
-          </div>
-        </form>
+            {error && (
+              <div className="bg-red-500/10 border border-red-500/30 text-red-400 px-4 py-3 rounded-xl text-sm backdrop-blur-sm">
+                {error}
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 disabled:from-gray-600 disabled:to-gray-700 text-white font-bold py-4 px-4 rounded-2xl transition-all duration-200 shadow-xl shadow-purple-500/40 hover:shadow-purple-500/60 hover:scale-[1.02] active:scale-95"
+            >
+              {loading ?  'Wird eingeloggt...' : 'Einloggen'}
+            </button>
+          </form>
+        </div>
+
+        <div className="text-center mt-8">
+          <p className="text-gray-400 text-sm">
+            Noch keinen Account? {' '}
+            <a href="/register" className="text-purple-400 hover:text-purple-300 font-bold transition hover:underline underline-offset-2">
+              Hier registrieren
+            </a>
+          </p>
+        </div>
       </div>
     </div>
   );
