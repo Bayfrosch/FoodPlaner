@@ -15,6 +15,14 @@ const initDb = async () => {
   try {
     console.log('Initialisiere Datenbank...');
 
+    // Lösche alte Tabellen und erstelle neu (für Schema-Änderungen)
+    await pool.query('DROP TABLE IF EXISTS recipe_items CASCADE');
+    await pool.query('DROP TABLE IF EXISTS recipes CASCADE');
+    await pool.query('DROP TABLE IF EXISTS list_collaborators CASCADE');
+    await pool.query('DROP TABLE IF EXISTS shopping_list_items CASCADE');
+    await pool.query('DROP TABLE IF EXISTS shopping_lists CASCADE');
+    await pool.query('DROP TABLE IF EXISTS users CASCADE');
+
     // Erstelle users Tabelle
     await pool.query(`
       CREATE TABLE IF NOT EXISTS users (
@@ -46,6 +54,7 @@ const initDb = async () => {
         id SERIAL PRIMARY KEY,
         list_id INTEGER NOT NULL,
         name VARCHAR(255) NOT NULL,
+        category VARCHAR(100),
         completed BOOLEAN DEFAULT FALSE,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (list_id) REFERENCES shopping_lists(id) ON DELETE CASCADE
@@ -93,6 +102,33 @@ const initDb = async () => {
     `);
     console.log('recipe_items Tabelle erstellt');
 
+    // Erstelle item_categories Tabelle (speichert Standard-Kategorien für Item-Namen pro Liste)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS item_categories (
+        id SERIAL PRIMARY KEY,
+        list_id INTEGER NOT NULL,
+        item_name VARCHAR(255) NOT NULL,
+        category VARCHAR(100),
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (list_id) REFERENCES shopping_lists(id) ON DELETE CASCADE,
+        UNIQUE(list_id, item_name)
+      )
+    `);
+    console.log('item_categories Tabelle erstellt');
+    // Erstelle Test-Account für Entwicklung
+    const bcrypt = require('bcrypt');
+    const testPassword = 'test123';
+    const testPasswordHash = await bcrypt.hash(testPassword, 10);
+    
+    try {
+      await pool.query(
+        'INSERT INTO users (email, username, password_hash) VALUES ($1, $2, $3)',
+        ['test@example.com', 'Test User', testPasswordHash]
+      );
+      console.log('✓ Test-Account erstellt (test@example.com / test123)');
+    } catch (err) {
+      // Account existiert bereits, ignorieren
+    }
     console.log(' Datenbank erfolgreich initialisiert!');
     process.exit(0);
   } catch (error) {

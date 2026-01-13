@@ -427,6 +427,13 @@ app.post('/api/lists', authMiddleware, async (req:  AuthRequest, res) => {
     res.status(201).json(result.rows[0]);
   } catch (error) {
     console.error('Error:', error);
+    const errorMsg = (error as Error).message;
+    
+    // Wenn Foreign Key Fehler (User nicht vorhanden), dann 401 Unauthorized
+    if (errorMsg.includes('shopping_lists_owner_id_fkey') || errorMsg.includes('users')) {
+      return res.status(401).json({ error: 'User-Sitzung ungültig. Bitte melden Sie sich neu an.' });
+    }
+    
     res.status(500).json({ error: 'Internal Server Error' });
   }
 });
@@ -559,10 +566,37 @@ app.post('/api/lists/:listId/items', authMiddleware, async (req: AuthRequest, re
       return res.status(403).json({ error: 'Access denied' });
     }
 
-    const result = await pool.query(
-      'INSERT INTO shopping_list_items (list_id, name, completed) VALUES ($1, $2, $3) RETURNING *',
-      [listId, name, false]
+    // Prüfe ob ein Item mit gleichem Namen existiert und hole dessen Kategorie
+    const existingItem = await pool.query(
+      'SELECT category FROM shopping_list_items WHERE list_id = $1 AND name = $2 LIMIT 1',
+      [listId, name]
     );
+
+    let category = existingItem.rows.length > 0 ? existingItem.rows[0].category : null;
+
+    // Falls kein Item mit dieser Kategorie existiert, prüfe die item_categories Tabelle
+    if (!category) {
+      const savedCategory = await pool.query(
+        'SELECT category FROM item_categories WHERE list_id = $1 AND item_name = $2',
+        [listId, name]
+      );
+      category = savedCategory.rows.length > 0 ? savedCategory.rows[0].category : null;
+    }
+
+    console.log(`Adding item "${name}" to list ${listId}. Found category:`, category);
+
+    const result = await pool.query(
+      'INSERT INTO shopping_list_items (list_id, name, category, completed) VALUES ($1, $2, $3, $4) RETURNING *',
+      [listId, name, category, false]
+    );
+
+    // Speichere die Kategorie in item_categories falls sie existiert
+    if (category) {
+      await pool.query(
+        'INSERT INTO item_categories (list_id, item_name, category) VALUES ($1, $2, $3) ON CONFLICT (list_id, item_name) DO UPDATE SET category = $3, updated_at = CURRENT_TIMESTAMP',
+        [listId, name, category]
+      );
+    }
 
     // Broadcast an alle Collaborators dieser Liste
     broadcastToListCollaborators(Number(listId), {
@@ -659,6 +693,75 @@ app.put('/api/lists/:listId/items/:itemId', authMiddleware, async (req: AuthRequ
     res.status(500).json({ error: 'Internal Server Error' });
   }
 });
+
+// Update item category
+app.put('/api/lists/:listId/items/:itemId/category', authMiddleware, async (req: AuthRequest, res) => {
+  try {
+    const listId = Number(req.params.listId);
+    const itemId = Number(req.params.itemId);
+    const { category } = req.body;
+
+    console.log('Update category - listId:', listId, 'itemId:', itemId, 'category:', category);
+
+    // Prüfe Access zur Liste
+    const accessCheck = await pool.query(
+      `SELECT id FROM shopping_lists 
+       WHERE id = $1 AND owner_id = $2
+       UNION
+       SELECT list_id FROM list_collaborators 
+       WHERE list_id = $1 AND user_id = $2`,
+      [listId, req.userId]
+    );
+
+    if (accessCheck.rows.length === 0) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    // Hole den Namen des Items
+    const itemData = await pool.query(
+      'SELECT name FROM shopping_list_items WHERE id = $1 AND list_id = $2',
+      [itemId, listId]
+    );
+
+    if (itemData.rows.length === 0) {
+      return res.status(404).json({ error: 'Item not found' });
+    }
+
+    const itemName = itemData.rows[0].name;
+
+    // Update ALLE Items mit gleichem Namen in dieser Liste
+    const result = await pool.query(
+      'UPDATE shopping_list_items SET category = $1 WHERE list_id = $2 AND name = $3 RETURNING *',
+      [category || null, listId, itemName]
+    );
+
+    // Speichere auch in item_categories für zukünftige Items mit gleichem Namen
+    if (category) {
+      await pool.query(
+        'INSERT INTO item_categories (list_id, item_name, category) VALUES ($1, $2, $3) ON CONFLICT (list_id, item_name) DO UPDATE SET category = $3, updated_at = CURRENT_TIMESTAMP',
+        [listId, itemName, category]
+      );
+    } else {
+      // Falls category null, lösche die gespeicherte Kategorie
+      await pool.query(
+        'DELETE FROM item_categories WHERE list_id = $1 AND item_name = $2',
+        [listId, itemName]
+      );
+    }
+
+    // Broadcast an alle Collaborators
+    broadcastToListCollaborators(listId, {
+      type: `list_${listId}_updated`,
+      data: { action: 'items_updated', items: result.rows }
+    });
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error updating category:', error);
+    res.status(500).json({ error: 'Internal Server Error', details: (error as Error).message });
+  }
+});
+
 // ============ COLLABORATOR ENDPOINTS ============
 
 // POST Collaborator zu Liste hinzufügen

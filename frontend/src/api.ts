@@ -27,6 +27,15 @@ export const apiCall = async (
   // Falls Fehler → Error werfen
   if (!response.ok) {
     const error = await response.json();
+    
+    // Falls 401 (Unauthorized) → redirect zu Login
+    if (response.status === 401) {
+      localStorage.removeItem('token');
+      localStorage.removeItem('userId');
+      window.location.href = '/login';
+      throw new Error('Session expired. Please login again.');
+    }
+    
     throw new Error(error.error || 'API Error');
   }
 
@@ -103,6 +112,12 @@ export const items = {
     apiCall(`/lists/${listId}/items/${itemId}`, {
       method: 'PUT',
       body: JSON.stringify({ completed }),
+    }),
+
+  updateCategory: (listId: number, itemId: number, category: string | null) =>
+    apiCall(`/lists/${listId}/items/${itemId}/category`, {
+      method: 'PUT',
+      body: JSON.stringify({ category }),
     }),
 
   delete: (listId: number, itemId:  number) =>

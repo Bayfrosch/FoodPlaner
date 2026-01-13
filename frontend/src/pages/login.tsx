@@ -20,11 +20,16 @@ export default function Login() {
         setError('');
 
         try {
-            const data = await auth.login(email,password);
+            console.log('Attempting login with:', email);
+            const data = await auth.login(email, password);
+            console.log('Login response:', data);
             localStorage.setItem('token', data.token);
-            localStorage.setItem('userId', data.userId);
+            localStorage.setItem('userId', String(data.userId));
+            console.log('Token saved:', localStorage.getItem('token'));
+            console.log('Navigating to dashboard...');
             navigate('/dashboard');
         } catch (err) {
+            console.error('Login error:', err);
             setError(err instanceof Error ? err.message :  'Login fehlgeschlagen');
         } finally {
             setLoading(false);
@@ -35,8 +40,8 @@ export default function Login() {
     <div className="min-h-screen bg-gradient-to-br from-[#0a0a0f] via-[#1a1a2e] to-[#0a0a0f] flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-12">
-          <div className="inline-flex items-center justify-center w-24 h-24 bg-gradient-to-br from-purple-500 via-purple-600 to-purple-700 rounded-3xl mb-8 shadow-2xl shadow-purple-500/50 hover:shadow-purple-500/70 transition-shadow">
-            <img src="/FoodPlaner.png" alt="FoodPlaner Logo" className="w-16 h-16" />
+          <div className="inline-flex items-center justify-center w-24 h-24 rounded-3xl mb-8 shadow-2xl">
+            <img src="/FoodPlaner.png" alt="FoodPlaner Logo" className="w-22 h-22 rounded-2xl" />
           </div>
           <h1 className="text-5xl font-black bg-gradient-to-r from-white via-purple-200 to-white bg-clip-text text-transparent mb-3">
             FoodPlaner

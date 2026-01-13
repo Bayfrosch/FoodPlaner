@@ -3,10 +3,12 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { items as itemsApi, lists } from '../api';
 import { wsService } from '../services/websocket';
 import ShareListModal from '../components/ShareListModal';
+import ListItemWithCategory from '../components/ListItemWithCategory';
 
 interface Item {
     id: number;
     name: string;
+    category: string | null;
     completed: boolean;
     created_at: string;
 }
@@ -26,6 +28,7 @@ export default function ListDetail() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [showShareModal, setShowShareModal] = useState(false);
+    const [customCategories, setCustomCategories] = useState<string[]>([]);
 
     useEffect(() => {
         if (listId) {
@@ -98,6 +101,12 @@ export default function ListDetail() {
             fetchData();
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Fehler beim Löschen');
+        }
+    };
+
+    const handleAddCategory = (categoryName: string) => {
+        if (!customCategories.includes(categoryName)) {
+            setCustomCategories([...customCategories, categoryName]);
         }
     };
 
@@ -205,48 +214,48 @@ export default function ListDetail() {
                         <p className="text-gray-400 text-sm">Füge deinen ersten Artikel hinzu</p>
                     </div>
                 ) : (
-                    <div className="bg-gradient-to-br from-[#14141f] to-[#1a1a2e] border border-[#2d2d3f] rounded-2xl overflow-hidden shadow-xl">
-                        <ul className="divide-y divide-[#2d2d3f]">
-                            {items.map((item, index) => (
-                                <li 
-                                    key={item.id} 
-                                    className="p-4 hover:bg-[#1a1a2e] flex items-center gap-4 transition-all group"
-                                    style={{ animationDelay: `${index * 50}ms` }}
-                                >
-                                    <label className="flex items-center gap-4 flex-1 cursor-pointer">
-                                        <div className="relative">
-                                            <input
-                                                type="checkbox"
-                                                checked={item.completed}
-                                                onChange={() => handleToggleItem(item.id, item.completed)}
-                                                className="peer w-6 h-6 cursor-pointer appearance-none bg-[#1a1a2e] border-2 border-[#2d2d3f] rounded-lg checked:bg-gradient-to-br checked:from-purple-500 checked:to-purple-600 checked:border-purple-500 transition-all"
+                    <div className="space-y-4">
+                        {(() => {
+                            // Gruppiere Items nach Kategorie
+                            const grouped = items.reduce((acc: any, item) => {
+                                const cat = item.category || 'Ohne Kategorie';
+                                if (!acc[cat]) acc[cat] = [];
+                                acc[cat].push(item);
+                                return acc;
+                            }, {});
+
+                            // Sortiere Kategorien (Ohne Kategorie zuletzt)
+                            const sortedCategories = Object.keys(grouped).sort((a, b) => {
+                                if (a === 'Ohne Kategorie') return 1;
+                                if (b === 'Ohne Kategorie') return -1;
+                                return a.localeCompare(b);
+                            });
+
+                            return sortedCategories.map((category) => (
+                                <div key={category} className="bg-gradient-to-br from-[#14141f] to-[#1a1a2e] border border-[#2d2d3f] rounded-2xl shadow-xl">
+                                    <div className="bg-purple-500/10 border-b border-[#2d2d3f] px-4 py-3 rounded-t-2xl">
+                                        <h3 className="text-sm font-semibold text-purple-400">{category}</h3>
+                                    </div>
+                                    <ul className="divide-y divide-[#2d2d3f]">
+                                        {grouped[category].map((item: Item) => (
+                                            <ListItemWithCategory
+                                                key={item.id}
+                                                id={item.id}
+                                                name={item.name}
+                                                category={item.category}
+                                                completed={item.completed}
+                                                listId={Number(listId)}
+                                                customCategories={customCategories}
+                                                onToggle={handleToggleItem}
+                                                onDelete={handleDeleteItem}
+                                                onCategoryChange={fetchData}
+                                                onAddCategory={handleAddCategory}
                                             />
-                                            <svg className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-4 h-4 text-white pointer-events-none opacity-0 peer-checked:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                                            </svg>
-                                        </div>
-                                        <span
-                                            className={`flex-1 transition-all ${
-                                                item.completed
-                                                    ? 'line-through text-gray-500'
-                                                    : 'text-gray-200 group-hover:text-white'
-                                            }`}
-                                        >
-                                            {item.name}
-                                        </span>
-                                    </label>
-                                    <button
-                                        onClick={() => handleDeleteItem(item.id)}
-                                        className="p-2 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-xl transition-all opacity-0 group-hover:opacity-100"
-                                        title="Artikel löschen"
-                                    >
-                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                        </svg>
-                                    </button>
-                                </li>
-                            ))}
-                        </ul>
+                                        ))}
+                                    </ul>
+                                </div>
+                            ));
+                        })()}
                     </div>
                 )}
                 </div>
