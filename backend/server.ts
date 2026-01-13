@@ -1,6 +1,7 @@
 import express from 'express';
 import { Pool } from 'pg';
 import dotenv from 'dotenv';
+import cors from 'cors';
 
 dotenv.config();
 
@@ -9,6 +10,9 @@ const PORT = 3001;
 
 // Middleware - JSON Body parsen
 app.use(express.json());
+app.use(cors({
+  origin: 'http://localhost:5173'  // Frontend URL
+}));
 
 const pool = new Pool({
     user: process.env.DB_USER,
