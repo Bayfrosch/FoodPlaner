@@ -4,6 +4,7 @@ import { recipes } from '../api';
 interface RecipeItem {
   id?: number;
   name: string;
+  category?: string;
 }
 
 interface RecipeModalProps {
@@ -23,14 +24,22 @@ export default function RecipeModal({ isOpen, onClose, onSave, recipe }: RecipeM
   const [description, setDescription] = useState('');
   const [items, setItems] = useState<RecipeItem[]>([]);
   const [newItemName, setNewItemName] = useState('');
+  const [newItemCategory, setNewItemCategory] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [customCategories, setCustomCategories] = useState<string[]>([]);
 
   useEffect(() => {
     if (recipe) {
       setTitle(recipe.title);
       setDescription(recipe.description);
       setItems(recipe.items || []);
+      // Sammle Kategorien aus existierenden Items
+      const cats = recipe.items
+        ?.filter(item => item.category)
+        .map(item => item.category!)
+        .filter((cat, idx, self) => self.indexOf(cat) === idx) || [];
+      setCustomCategories(cats);
     } else {
       resetForm();
     }
@@ -41,13 +50,15 @@ export default function RecipeModal({ isOpen, onClose, onSave, recipe }: RecipeM
     setDescription('');
     setItems([]);
     setNewItemName('');
+    setNewItemCategory('');
     setError('');
   };
 
   const handleAddItem = () => {
     if (newItemName.trim()) {
-      setItems([...items, { name: newItemName }]);
+      setItems([...items, { name: newItemName, category: newItemCategory || undefined }]);
       setNewItemName('');
+      setNewItemCategory('');
     }
   };
 
@@ -140,6 +151,19 @@ export default function RecipeModal({ isOpen, onClose, onSave, recipe }: RecipeM
               placeholder="Zutat hinzufügen..."
               className="flex-1 px-4 py-3 bg-[#1a1a2e] border border-purple-500/30 rounded-2xl text-white placeholder-gray-500 focus:outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-500/30 transition-all"
             />
+            <input
+              type="text"
+              value={newItemCategory}
+              onChange={(e) => setNewItemCategory(e.target.value)}
+              placeholder="Kategorie wählen oder eingeben..."
+              list="categoryList"
+              className="px-4 py-3 bg-[#1a1a2e] border border-purple-500/30 rounded-2xl text-white placeholder-gray-500 focus:outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-500/30 transition-all"
+            />
+            <datalist id="categoryList">
+              {customCategories.map(cat => (
+                <option key={cat} value={cat} />
+              ))}
+            </datalist>
             <button
               onClick={handleAddItem}
               className="px-6 py-3 bg-purple-500/20 border border-purple-500/50 hover:bg-purple-500/30 text-purple-400 rounded-2xl font-medium transition-all"
@@ -152,7 +176,12 @@ export default function RecipeModal({ isOpen, onClose, onSave, recipe }: RecipeM
           <div className="space-y-2">
             {items.map((item, index) => (
               <div key={index} className="flex items-center justify-between bg-[#1a1a2e] border border-purple-500/20 rounded-2xl px-4 py-3">
-                <span className="text-gray-300">{item.name}</span>
+                <div className="flex-1">
+                  <span className="text-gray-300">{item.name}</span>
+                  {item.category && (
+                    <div className="text-xs text-purple-400 mt-1">{item.category}</div>
+                  )}
+                </div>
                 <button
                   onClick={() => handleRemoveItem(index)}
                   className="text-red-400 hover:text-red-300 transition-colors"

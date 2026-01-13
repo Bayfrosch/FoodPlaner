@@ -96,6 +96,7 @@ const initDb = async () => {
         id SERIAL PRIMARY KEY,
         recipe_id INTEGER NOT NULL,
         name VARCHAR(255) NOT NULL,
+        category VARCHAR(100),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (recipe_id) REFERENCES recipes(id) ON DELETE CASCADE
       )

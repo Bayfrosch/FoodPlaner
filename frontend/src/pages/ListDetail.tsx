@@ -62,6 +62,20 @@ export default function ListDetail() {
 
             const itemsData = await itemsApi.getAll(listId_num);
             setItems(itemsData);
+            
+            // Lade alle persistenten Kategorien von diesem List
+            try {
+                const categories = await lists.getCategories(listId_num);
+                setCustomCategories(categories);
+            } catch (err) {
+                // Falls Fehler beim Laden der Kategorien, nutze die aus den Items
+                const categories = itemsData
+                    .filter((item: any) => item.category)
+                    .map((item: any) => item.category)
+                    .filter((cat: string, index: number, self: string[]) => self.indexOf(cat) === index);
+                
+                setCustomCategories(categories);
+            }
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Fehler beim Laden');
             console.error(err);
@@ -107,6 +121,18 @@ export default function ListDetail() {
     const handleAddCategory = (categoryName: string) => {
         if (!customCategories.includes(categoryName)) {
             setCustomCategories([...customCategories, categoryName]);
+        }
+    };
+
+    const handleDeleteCategory = async (categoryName: string) => {
+        if (!listId) return;
+
+        try {
+            await lists.deleteCategory(Number(listId), categoryName);
+            setCustomCategories(customCategories.filter(cat => cat !== categoryName));
+            fetchData();
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Fehler beim Löschen der Kategorie');
         }
     };
 
@@ -250,6 +276,7 @@ export default function ListDetail() {
                                                 onDelete={handleDeleteItem}
                                                 onCategoryChange={fetchData}
                                                 onAddCategory={handleAddCategory}
+                                                onDeleteCategory={handleDeleteCategory}
                                             />
                                         ))}
                                     </ul>

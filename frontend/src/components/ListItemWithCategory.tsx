@@ -12,9 +12,10 @@ interface ListItemWithCategoryProps {
   onDelete: (itemId: number) => void;
   onCategoryChange: () => void;
   onAddCategory: (categoryName: string) => void;
+  onDeleteCategory: (categoryName: string) => void;
 }
 
-const DEFAULT_CATEGORIES = ['Obst & Gemüse', 'Fleisch & Fisch', 'Milchprodukte', 'Getreide & Brot', 'Getränke', 'Sonstiges'];
+const DEFAULT_CATEGORIES: string[] = [];
 
 export default function ListItemWithCategory({
   id,
@@ -27,6 +28,7 @@ export default function ListItemWithCategory({
   onDelete,
   onCategoryChange,
   onAddCategory,
+  onDeleteCategory,
 }: ListItemWithCategoryProps) {
   const [showCategoryMenu, setShowCategoryMenu] = useState(false);
   const [updatingCategory, setUpdatingCategory] = useState(false);
@@ -148,23 +150,40 @@ export default function ListItemWithCategory({
                 Keine Kategorie
               </button>
               {uniqueCategories.map((cat) => (
-                <button
-                  type="button"
-                  key={cat}
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    handleCategorySelect(cat);
-                  }}
-                  disabled={updatingCategory}
-                  className={`w-full text-left px-4 py-2 transition-all text-sm border-b border-[#2d2d3f] disabled:opacity-50 ${
-                    category === cat
-                      ? 'bg-purple-500/20 text-purple-300'
-                      : 'text-gray-400 hover:text-white hover:bg-purple-500/10'
-                  }`}
-                >
-                  {cat}
-                </button>
+                <div key={cat} className="border-b border-[#2d2d3f] flex items-center group">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handleCategorySelect(cat);
+                    }}
+                    disabled={updatingCategory}
+                    className={`flex-1 text-left px-4 py-2 transition-all text-sm disabled:opacity-50 ${
+                      category === cat
+                        ? 'bg-purple-500/20 text-purple-300'
+                        : 'text-gray-400 hover:text-white hover:bg-purple-500/10'
+                    }`}
+                  >
+                    {cat}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      if (confirm(`Kategorie "${cat}" löschen?`)) {
+                        onDeleteCategory(cat);
+                      }
+                    }}
+                    className="text-red-400 hover:text-red-300 p-2 opacity-0 group-hover:opacity-100 hover:bg-red-500/20 rounded transition-all mx-1"
+                    title="Kategorie löschen"
+                  >
+                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z" />
+                    </svg>
+                  </button>
+                </div>
               ))}
               <div className="px-4 py-3 border-t border-[#2d2d3f] bg-[#0a0a0f]">
                 <input

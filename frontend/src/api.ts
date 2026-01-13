@@ -94,6 +94,11 @@ export const lists = {
 
   delete: (id: number) =>
     apiCall(`/lists/${id}`, { method: 'DELETE' }),
+
+  getCategories: (id: number) => apiCall(`/lists/${id}/categories`),
+
+  deleteCategory: (id: number, category: string) =>
+    apiCall(`/lists/${id}/categories/${encodeURIComponent(category)}`, { method: 'DELETE' }),
 };
 
 // ============================================

@@ -510,6 +510,77 @@ app.delete('/api/lists/:listId', authMiddleware, async (req: AuthRequest, res) =
   }
 });
 
+// GET alle Kategorien einer Liste
+app.get('/api/lists/:listId/categories', authMiddleware, async (req: AuthRequest, res) => {
+  try {
+    const { listId } = req.params;
+
+    // Prüfe ob User Zugriff hat
+    const accessCheck = await pool.query(
+      `SELECT id FROM shopping_lists 
+       WHERE id = $1 AND (owner_id = $2 OR id IN (
+         SELECT list_id FROM list_collaborators WHERE user_id = $2
+       ))`,
+      [listId, req.userId]
+    );
+
+    if (accessCheck.rows.length === 0) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    // Hole alle eindeutigen Kategorien aus item_categories
+    const result = await pool.query(
+      `SELECT DISTINCT category FROM item_categories WHERE list_id = $1 AND category IS NOT NULL ORDER BY category`,
+      [listId]
+    );
+
+    const categories = result.rows.map(row => row.category);
+    res.json(categories);
+  } catch (error) {
+    console.error('Error:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// DELETE eine Kategorie
+app.delete('/api/lists/:listId/categories/:category', authMiddleware, async (req: AuthRequest, res) => {
+  try {
+    const listId = req.params.listId as string;
+    const category = req.params.category as string;
+    const decodedCategory = decodeURIComponent(category);
+
+    // Prüfe ob User Zugriff hat
+    const accessCheck = await pool.query(
+      `SELECT id FROM shopping_lists 
+       WHERE id = $1 AND (owner_id = $2 OR id IN (
+         SELECT list_id FROM list_collaborators WHERE user_id = $2
+       ))`,
+      [listId, req.userId]
+    );
+
+    if (accessCheck.rows.length === 0) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    // Setze alle Items mit dieser Kategorie auf null
+    await pool.query(
+      `UPDATE shopping_list_items SET category = NULL WHERE list_id = $1 AND category = $2`,
+      [listId, decodedCategory]
+    );
+
+    // Lösche die Kategorie aus item_categories
+    await pool.query(
+      `DELETE FROM item_categories WHERE list_id = $1 AND category = $2`,
+      [listId, decodedCategory]
+    );
+
+    res.json({ message: 'Kategorie gelöscht' });
+  } catch (error) {
+    console.error('Error:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
 // ============ ITEM ENDPOINTS ============
 
 // GET Items einer Liste
@@ -890,7 +961,7 @@ app.get('/api/recipes', authMiddleware, async (req: AuthRequest, res) => {
     const recipesWithItems = await Promise.all(
       result.rows.map(async (recipe) => {
         const itemsResult = await pool.query(
-          `SELECT id, name FROM recipe_items WHERE recipe_id = $1 ORDER BY created_at`,
+          `SELECT id, name, category FROM recipe_items WHERE recipe_id = $1 ORDER BY created_at`,
           [recipe.id]
         );
         return {
@@ -923,7 +994,7 @@ app.get('/api/recipes/:id', authMiddleware, async (req: AuthRequest, res) => {
     }
 
     const itemsResult = await pool.query(
-      `SELECT id, name FROM recipe_items WHERE recipe_id = $1 ORDER BY created_at`,
+      `SELECT id, name, category FROM recipe_items WHERE recipe_id = $1 ORDER BY created_at`,
       [recipeId]
     );
 
@@ -958,9 +1029,21 @@ app.post('/api/recipes', authMiddleware, async (req: AuthRequest, res) => {
 
     // Add items if provided
     if (items && Array.isArray(items) && items.length > 0) {
-      const itemValues = items.map(item => `(${recipeId}, '${item.name.replace(/'/g, "''")}')`).join(',');
+      const itemValues = items
+        .map((item: any, idx: number) => {
+          const baseIdx = idx * 3;
+          return `($${baseIdx + 1}, $${baseIdx + 2}, $${baseIdx + 3})`;
+        })
+        .join(', ');
+
+      const itemParams: any[] = [];
+      items.forEach((item: any) => {
+        itemParams.push(recipeId, item.name, item.category || null);
+      });
+
       await pool.query(
-        `INSERT INTO recipe_items (recipe_id, name) VALUES ${itemValues}`
+        `INSERT INTO recipe_items (recipe_id, name, category) VALUES ${itemValues}`,
+        itemParams
       );
     }
 
@@ -1000,7 +1083,7 @@ app.put('/api/recipes/:id', authMiddleware, async (req: AuthRequest, res) => {
 
     // Get items
     const itemsResult = await pool.query(
-      `SELECT id, name FROM recipe_items WHERE recipe_id = $1 ORDER BY created_at`,
+      `SELECT id, name, category FROM recipe_items WHERE recipe_id = $1 ORDER BY created_at`,
       [recipeId]
     );
 
@@ -1049,7 +1132,7 @@ app.post('/api/recipes/:id/items', authMiddleware, async (req: AuthRequest, res)
   try {
     const userId = req.userId;
     const recipeId = parseInt(req.params.id as string);
-    const { name } = req.body;
+    const { name, category } = req.body;
 
     if (!name) {
       return res.status(400).json({ error: 'Name is required' });
@@ -1066,8 +1149,8 @@ app.post('/api/recipes/:id/items', authMiddleware, async (req: AuthRequest, res)
     }
 
     const result = await pool.query(
-      `INSERT INTO recipe_items (recipe_id, name) VALUES ($1, $2) RETURNING id, name`,
-      [recipeId, name]
+      `INSERT INTO recipe_items (recipe_id, name, category) VALUES ($1, $2, $3) RETURNING id, name, category`,
+      [recipeId, name, category || null]
     );
 
     res.status(201).json(result.rows[0]);
@@ -1143,7 +1226,7 @@ app.post('/api/recipes/:id/add-to-list', authMiddleware, async (req: AuthRequest
 
     // Get all items from recipe
     const itemsResult = await pool.query(
-      `SELECT name FROM recipe_items WHERE recipe_id = $1`,
+      `SELECT name, category FROM recipe_items WHERE recipe_id = $1`,
       [recipeId]
     );
 
@@ -1151,10 +1234,22 @@ app.post('/api/recipes/:id/add-to-list', authMiddleware, async (req: AuthRequest
     const itemsToAdd = itemsResult.rows;
     for (const item of itemsToAdd) {
       const itemNameWithRecipe = `${item.name} (${recipeName})`;
+      const category = item.category || null;
+      
+      // Füge Item zur Liste hinzu
       await pool.query(
-        `INSERT INTO shopping_list_items (list_id, name, completed) VALUES ($1, $2, FALSE)`,
-        [listId, itemNameWithRecipe]
+        `INSERT INTO shopping_list_items (list_id, name, category, completed) VALUES ($1, $2, $3, FALSE)`,
+        [listId, itemNameWithRecipe, category]
       );
+      
+      // Speichere Kategorie in item_categories (für Persistenz)
+      if (category) {
+        await pool.query(
+          `INSERT INTO item_categories (list_id, item_name, category) VALUES ($1, $2, $3)
+           ON CONFLICT (list_id, item_name) DO UPDATE SET category = $3`,
+          [listId, itemNameWithRecipe, category]
+        );
+      }
     }
 
     // Broadcast to list collaborators
