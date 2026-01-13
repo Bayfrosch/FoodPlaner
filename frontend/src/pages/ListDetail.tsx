@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { items as itemsApi, lists } from '../api';
+import { wsService } from '../services/websocket';
+import ShareListModal from '../components/ShareListModal';
 
 interface Item {
     id: number;
@@ -23,10 +25,27 @@ export default function ListDetail() {
     const [newItemName, setNewItemName] = useState('');
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
+    const [showShareModal, setShowShareModal] = useState(false);
 
     useEffect(() => {
         if (listId) {
             fetchData();
+
+            // WebSocket-Listener für diese spezifische Liste
+            const token = localStorage.getItem('token');
+            if (token && !wsService.isConnected()) {
+                wsService.connect(token).catch(err => {
+                    console.error('WebSocket-Verbindung fehlgeschlagen:', err);
+                });
+            }
+
+            // Nur updates für diese Liste
+            const unsubscribe = wsService.subscribe(`list_${listId}_updated`, () => {
+                console.log(`Liste ${listId} aktualisiert - neu laden`);
+                fetchData();
+            });
+
+            return () => unsubscribe();
         }
     }, [listId]);
 
@@ -108,15 +127,25 @@ export default function ListDetail() {
             {/* Header */}
             <header className="bg-gradient-to-b from-[#14141f] to-transparent border-b border-[#2d2d3f]/50">
                 <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6">
-                    <div className="flex justify-center">
+                    <div className="flex justify-between items-center mb-4">
                         <button
                             onClick={() => navigate('/dashboard')}
-                            className="inline-flex items-center gap-2 text-purple-400 hover:text-purple-300 mb-4 text-sm font-medium transition-all group"
+                            className="inline-flex items-center gap-2 text-purple-400 hover:text-purple-300 text-sm font-medium transition-all group"
                         >
                             <svg className="w-4 h-4 group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                             </svg>
                             Zurück zu Listen
+                        </button>
+                        <button
+                            onClick={() => setShowShareModal(true)}
+                            className="inline-flex items-center gap-2 text-purple-400 hover:text-purple-300 text-sm font-medium transition-all group"
+                            title="Liste teilen"
+                        >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                            </svg>
+                            Teilen
                         </button>
                     </div>
                     <div className="flex items-center justify-center gap-4">
@@ -258,6 +287,14 @@ export default function ListDetail() {
                 )}
                 </div>
             </main>
+
+            {/* Share Modal */}
+            {showShareModal && listId && (
+                <ShareListModal
+                    listId={Number(listId)}
+                    onClose={() => setShowShareModal(false)}
+                />
+            )}
         </div>
     );
 }

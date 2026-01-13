@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { lists } from '../api';
+import { wsService } from '../services/websocket';
 import ListCard from '../components/ListCard';
 import CreateListModal from '../components/CreateListModal';
 
@@ -21,6 +22,25 @@ export default function Dashboard() {
     useEffect(() => {
         checkAuth();
         fetchLists();
+
+        // WebSocket verbinden für Live-Updates
+        const token = localStorage.getItem('token');
+        if (token) {
+            wsService.connect(token).catch(err => {
+                console.error('WebSocket-Verbindung fehlgeschlagen:', err);
+            });
+
+            // Abonniere List-Updates
+            const unsubscribe = wsService.subscribe('list_updated', () => {
+                console.log('Liste aktualisiert - neu laden');
+                fetchLists();
+            });
+
+            return () => {
+                unsubscribe();
+                wsService.disconnect();
+            };
+        }
     },[]);
 
     const checkAuth = () => {

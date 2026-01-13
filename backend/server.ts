@@ -4,18 +4,68 @@ import dotenv from 'dotenv';
 import cors from 'cors';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
+import { WebSocketServer, WebSocket } from 'ws';
+import http from 'http';
 import { authMiddleware, AuthRequest } from './middleware/auth';
 
 dotenv.config();
 
 const app = express();
+const server = http.createServer(app);
+const wss = new WebSocketServer({ server });
 const PORT = process.env.PORT || 3001;
+
+// Map für WebSocket-Verbindungen pro User
+const userConnections = new Map<number, Set<any>>();
 
 // Middleware
 app.use(cors({
   origin: 'http://localhost:5173'
 }));
 app.use(express.json());
+
+// ============================================
+// WebSocket Broadcast-Funktionen
+// ============================================
+const broadcastToUser = (userId: number, message: any) => {
+  const connections = userConnections.get(userId);
+  if (connections) {
+    const messageStr = JSON.stringify(message);
+    connections.forEach(ws => {
+      if (ws.readyState === 1) { // 1 = OPEN
+        ws.send(messageStr);
+      }
+    });
+  }
+};
+
+const broadcastToListCollaborators = async (listId: number, message: any) => {
+  try {
+    // Finde Owner und alle Collaborators dieser Liste
+    const result = await pool.query(
+      `SELECT DISTINCT user_id FROM (
+        SELECT owner_id as user_id FROM shopping_lists WHERE id = $1
+        UNION
+        SELECT user_id FROM list_collaborators WHERE list_id = $1
+      ) users`,
+      [listId]
+    );
+
+    const messageStr = JSON.stringify(message);
+    result.rows.forEach(row => {
+      const connections = userConnections.get(row.user_id);
+      if (connections) {
+        connections.forEach(ws => {
+          if (ws.readyState === 1) {
+            ws.send(messageStr);
+          }
+        });
+      }
+    });
+  } catch (error) {
+    console.error('Fehler beim Broadcast:', error);
+  }
+};
 
 // Datenbank Connection
 const pool = new Pool({
@@ -24,6 +74,52 @@ const pool = new Pool({
   host: process.env.DB_HOST,
   port: parseInt(process.env.DB_PORT || '5432'),
   database: process.env.DB_NAME
+});
+
+// ============================================
+// WebSocket Handler
+// ============================================
+wss.on('connection', (ws: WebSocket, req: any) => {
+  try {
+    // Token aus URL auslesen
+    const url = new URL(req.url || '', `http://${req.headers.host}`);
+    const token = url.searchParams.get('token');
+
+    if (!token) {
+      ws.close(4001, 'Token erforderlich');
+      return;
+    }
+
+    // Token verifizieren
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret') as { userId: number };
+    const userId = decoded.userId;
+
+    // Verbindung zur User-Liste hinzufügen
+    if (!userConnections.has(userId)) {
+      userConnections.set(userId, new Set());
+    }
+    userConnections.get(userId)!.add(ws);
+
+    console.log(`User ${userId} verbunden (WebSocket)`);
+
+    ws.on('close', () => {
+      const connections = userConnections.get(userId);
+      if (connections) {
+        connections.delete(ws);
+        if (connections.size === 0) {
+          userConnections.delete(userId);
+        }
+      }
+      console.log(`User ${userId} getrennt`);
+    });
+
+    ws.on('error', (error: any) => {
+      console.error('WebSocket Fehler:', error);
+    });
+  } catch (error) {
+    console.error('WebSocket Authentifizierung fehlgeschlagen:', error);
+    ws.close(4002, 'Authentifizierung fehlgeschlagen');
+  }
 });
 
 // Initialisiere Datenbank beim Start
@@ -322,6 +418,12 @@ app.post('/api/lists', authMiddleware, async (req:  AuthRequest, res) => {
       [req.userId, title, description || null]
     );
 
+    // Broadcast an User dass neue Liste erstellt wurde
+    broadcastToUser(req.userId!, {
+      type: 'list_updated',
+      data: result.rows[0]
+    });
+
     res.status(201).json(result.rows[0]);
   } catch (error) {
     console.error('Error:', error);
@@ -462,6 +564,12 @@ app.post('/api/lists/:listId/items', authMiddleware, async (req: AuthRequest, re
       [listId, name, false]
     );
 
+    // Broadcast an alle Collaborators dieser Liste
+    broadcastToListCollaborators(Number(listId), {
+      type: `list_${listId}_updated`,
+      data: { action: 'item_added', item: result.rows[0] }
+    });
+
     res.status(201).json(result.rows[0]);
   } catch (error) {
     console.error('Error:', error);
@@ -496,6 +604,12 @@ app.delete('/api/lists/:listId/items/:itemId', authMiddleware, async (req:  Auth
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Item not found' });
     }
+
+    // Broadcast an alle Collaborators
+    broadcastToListCollaborators(Number(listId), {
+      type: `list_${listId}_updated`,
+      data: { action: 'item_deleted', itemId: Number(itemId) }
+    });
 
     res.json({ message: 'Item deleted', item: result.rows[0] });
   } catch (error) {
@@ -533,13 +647,18 @@ app.put('/api/lists/:listId/items/:itemId', authMiddleware, async (req: AuthRequ
       return res.status(404).json({ error: 'Item not found' });
     }
 
+    // Broadcast an alle Collaborators
+    broadcastToListCollaborators(Number(listId), {
+      type: `list_${listId}_updated`,
+      data: { action: 'item_updated', item: result.rows[0] }
+    });
+
     res.json(result.rows[0]);
   } catch (error) {
     console.error('Error:', error);
     res.status(500).json({ error: 'Internal Server Error' });
   }
 });
-
 // ============ COLLABORATOR ENDPOINTS ============
 
 // POST Collaborator zu Liste hinzufügen
@@ -653,8 +772,9 @@ app.delete('/api/lists/:listId/collaborators/:collaboratorId', authMiddleware, a
 // Server starten
 const startServer = async () => {
   await initializeDatabase();
-  app.listen(PORT, () => {
+  server.listen(PORT, () => {
     console.log(`Server läuft auf http://localhost:${PORT}`);
+    console.log(`WebSocket läuft auf ws://localhost:${PORT}`);
   });
 };
 

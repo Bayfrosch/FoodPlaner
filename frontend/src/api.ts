@@ -116,6 +116,12 @@ export const collaborators = {
   getAll: (listId: number) =>
     apiCall(`/lists/${listId}/collaborators`),
 
+  invite: (listId: number, email: string, role: 'editor' | 'viewer') =>
+    apiCall(`/lists/${listId}/collaborators`, {
+      method: 'POST',
+      body: JSON.stringify({ email, role }),
+    }),
+
   add: (listId: number, userId: number, role: 'editor' | 'viewer') =>
     apiCall(`/lists/${listId}/collaborators`, {
       method: 'POST',
@@ -128,8 +134,6 @@ export const collaborators = {
       body: JSON.stringify({ role }),
     }),
 
-  delete: (listId: number, userId: number) =>
-    apiCall(`/lists/${listId}/collaborators/${userId}`, {
-      method: 'DELETE',
-    }),
+  remove: (listId: number, collaboratorId: number) =>
+    apiCall(`/lists/${listId}/collaborators/${collaboratorId}`, { method: 'DELETE' }),
 };
