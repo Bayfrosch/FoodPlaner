@@ -3,6 +3,7 @@ import Login from './pages/login';
 import Register from './pages/register';
 import Dashboard from './pages/Dashboard';
 import ListDetail from './pages/ListDetail';
+import Profile from './pages/Profile';
 import './index.css';
 
 function App() {
@@ -13,6 +14,7 @@ function App() {
         <Route path="/register" element={<Register />} />
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/list/:listId" element={<ListDetail />} />
+        <Route path="/profile" element={<Profile />} />
         <Route path="/" element={<Navigate to="/dashboard" />} />
       </Routes>
     </BrowserRouter>

@@ -196,6 +196,70 @@ app.get('/api/auth/me', authMiddleware, async (req: AuthRequest, res) => {
   }
 });
 
+// PUT Profil aktualisieren
+app.put('/api/auth/profile', authMiddleware, async (req: AuthRequest, res) => {
+  try {
+    const { email, currentPassword, newPassword } = req.body;
+
+    if (!email || !currentPassword) {
+      return res.status(400).json({ error: 'Email und aktuelles Passwort erforderlich' });
+    }
+
+    // User abrufen
+    const userResult = await pool.query(
+      'SELECT id, password_hash FROM users WHERE id = $1',
+      [req.userId]
+    );
+
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const user = userResult.rows[0];
+
+    // Aktuelles Passwort überprüfen
+    const isPasswordCorrect = await bcrypt.compare(currentPassword, user.password_hash);
+
+    if (!isPasswordCorrect) {
+      return res.status(401).json({ error: 'Aktuelles Passwort ist falsch' });
+    }
+
+    // Email-Duplikat prüfen (wenn Email geändert wird)
+    if (email !== req.body.currentEmail) {
+      const emailExists = await pool.query(
+        'SELECT id FROM users WHERE email = $1 AND id != $2',
+        [email, req.userId]
+      );
+
+      if (emailExists.rows.length > 0) {
+        return res.status(400).json({ error: 'Email existiert bereits' });
+      }
+    }
+
+    // Passwort aktualisieren (falls vorhanden)
+    let updateQuery = 'UPDATE users SET email = $1';
+    let params: any[] = [email, req.userId];
+
+    if (newPassword) {
+      if (newPassword.length < 3) {
+        return res.status(400).json({ error: 'Neues Passwort muss mindestens 3 Zeichen lang sein' });
+      }
+      const hashedPassword = await bcrypt.hash(newPassword, 10);
+      updateQuery += ', password_hash = $2';
+      params = [email, hashedPassword, req.userId];
+    }
+
+    updateQuery += ' WHERE id = $' + (params.length) + ' RETURNING id, email, username';
+
+    const result = await pool.query(updateQuery, params);
+
+    res.json({ message: 'Profil erfolgreich aktualisiert', user: result.rows[0] });
+  } catch (error) {
+    console.error('Error:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
 // ============ LIST ENDPOINTS ============
 
 // GET alle Listen des aktuellen Users

@@ -51,6 +51,12 @@ export const auth = {
 
   me: () => apiCall('/auth/me'),
 
+  updateProfile: (email: string, currentPassword: string, newPassword?: string) =>
+    apiCall('/auth/profile', {
+      method: 'PUT',
+      body: JSON.stringify({ email, currentPassword, newPassword }),
+    }),
+
   logout: () => {
     localStorage.removeItem('token');
     localStorage.removeItem('userId');
