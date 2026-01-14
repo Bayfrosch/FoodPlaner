@@ -3,6 +3,8 @@ import { Request, Response, NextFunction } from 'express';
 
 export interface AuthRequest extends Request {
   userId?: number;
+  body: any;
+  params: any;
 }
 
 export const authMiddleware = (req: AuthRequest, res: Response, next: NextFunction) => {

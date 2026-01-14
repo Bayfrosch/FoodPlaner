@@ -10,6 +10,7 @@
     "install:all": "npm install --prefix backend && npm install --prefix frontend"
   },
   "devDependencies": {
+    "@types/express": "^5.0.6",
     "concurrently": "^8.2.2"
   }
 }

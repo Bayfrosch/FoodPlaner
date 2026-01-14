@@ -1,0 +1,31 @@
+# Prisma
+prisma/dev.db
+prisma/dev.db-journal
+
+# Dependencies
+node_modules/
+
+# Environment variables
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Generated
+dist/
+build/
+
+# OS
+.DS_Store

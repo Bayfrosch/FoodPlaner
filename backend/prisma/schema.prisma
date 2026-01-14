@@ -1,0 +1,112 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        Int     @id @default(autoincrement())
+  email     String  @unique
+  username  String
+  passwordHash String @map("password_hash")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Beziehungen
+  ownedLists ShoppingList[] @relation("owner")
+  collaborations ListCollaborator[]
+  recipes   Recipe[] @relation("owner")
+
+  @@map("users")
+}
+
+model ShoppingList {
+  id        Int     @id @default(autoincrement())
+  ownerId   Int     @map("owner_id")
+  title     String
+  description String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Beziehungen
+  owner     User     @relation("owner", fields: [ownerId], references: [id], onDelete: Cascade)
+  items     ShoppingListItem[]
+  collaborators ListCollaborator[]
+  itemCategories ItemCategory[]
+
+  @@map("shopping_lists")
+}
+
+model ShoppingListItem {
+  id        Int     @id @default(autoincrement())
+  listId    Int     @map("list_id")
+  name      String
+  category  String?
+  completed Boolean @default(false)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Beziehungen
+  list      ShoppingList @relation(fields: [listId], references: [id], onDelete: Cascade)
+
+  @@map("shopping_list_items")
+}
+
+model ListCollaborator {
+  id        Int     @id @default(autoincrement())
+  listId    Int     @map("list_id")
+  userId    Int     @map("user_id")
+  role      String  @default("viewer")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Beziehungen
+  list      ShoppingList @relation(fields: [listId], references: [id], onDelete: Cascade)
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([listId, userId])
+  @@map("list_collaborators")
+}
+
+model Recipe {
+  id        Int     @id @default(autoincrement())
+  ownerId   Int     @map("owner_id")
+  title     String
+  description String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Beziehungen
+  owner     User     @relation("owner", fields: [ownerId], references: [id], onDelete: Cascade)
+  items     RecipeItem[]
+
+  @@map("recipes")
+}
+
+model RecipeItem {
+  id        Int     @id @default(autoincrement())
+  recipeId  Int     @map("recipe_id")
+  name      String
+  category  String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Beziehungen
+  recipe    Recipe  @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+
+  @@map("recipe_items")
+}
+
+model ItemCategory {
+  id        Int     @id @default(autoincrement())
+  listId    Int     @map("list_id")
+  itemName  String  @map("item_name")
+  category  String?
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  // Beziehungen
+  list      ShoppingList @relation(fields: [listId], references: [id], onDelete: Cascade)
+
+  @@unique([listId, itemName])
+  @@map("item_categories")
+}

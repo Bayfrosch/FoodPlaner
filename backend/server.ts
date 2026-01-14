@@ -1,5 +1,5 @@
 import express from 'express';
-import { Pool } from 'pg';
+import { PrismaClient } from '@prisma/client';
 import dotenv from 'dotenv';
 import cors from 'cors';
 import bcrypt from 'bcrypt';
@@ -14,6 +14,9 @@ const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server });
 const PORT = process.env.PORT || 3001;
+
+// Prisma Client
+const prisma = new PrismaClient();
 
 // Map für WebSocket-Verbindungen pro User
 const userConnections = new Map<number, Set<any>>();
@@ -42,18 +45,24 @@ const broadcastToUser = (userId: number, message: any) => {
 const broadcastToListCollaborators = async (listId: number, message: any) => {
   try {
     // Finde Owner und alle Collaborators dieser Liste
-    const result = await pool.query(
-      `SELECT DISTINCT user_id FROM (
-        SELECT owner_id as user_id FROM shopping_lists WHERE id = $1
-        UNION
-        SELECT user_id FROM list_collaborators WHERE list_id = $1
-      ) users`,
-      [listId]
-    );
+    const list = await prisma.shoppingList.findUnique({
+      where: { id: listId },
+      include: {
+        collaborators: {
+          select: { userId: true }
+        }
+      }
+    });
+
+    if (!list) return;
+
+    const userIds = new Set<number>();
+    userIds.add(list.ownerId);
+    list.collaborators.forEach(c => userIds.add(c.userId));
 
     const messageStr = JSON.stringify(message);
-    result.rows.forEach(row => {
-      const connections = userConnections.get(row.user_id);
+    userIds.forEach(userId => {
+      const connections = userConnections.get(userId);
       if (connections) {
         connections.forEach(ws => {
           if (ws.readyState === 1) {
@@ -66,15 +75,6 @@ const broadcastToListCollaborators = async (listId: number, message: any) => {
     console.error('Fehler beim Broadcast:', error);
   }
 };
-
-// Datenbank Connection
-const pool = new Pool({
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  host: process.env.DB_HOST,
-  port: parseInt(process.env.DB_PORT || '5432'),
-  database: process.env.DB_NAME
-});
 
 // ============================================
 // WebSocket Handler
@@ -122,64 +122,6 @@ wss.on('connection', (ws: WebSocket, req: any) => {
   }
 });
 
-// Initialisiere Datenbank beim Start
-const initializeDatabase = async () => {
-  try {
-    // Erstelle users Tabelle
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS users (
-        id SERIAL PRIMARY KEY,
-        email VARCHAR(255) UNIQUE NOT NULL,
-        username VARCHAR(255) NOT NULL,
-        password_hash VARCHAR(255) NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    // Erstelle shopping_lists Tabelle
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS shopping_lists (
-        id SERIAL PRIMARY KEY,
-        owner_id INTEGER NOT NULL,
-        title VARCHAR(255) NOT NULL,
-        description TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE
-      )
-    `);
-
-    // Erstelle shopping_list_items Tabelle
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS shopping_list_items (
-        id SERIAL PRIMARY KEY,
-        list_id INTEGER NOT NULL,
-        name VARCHAR(255) NOT NULL,
-        completed BOOLEAN DEFAULT FALSE,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (list_id) REFERENCES shopping_lists(id) ON DELETE CASCADE
-      )
-    `);
-
-    // Erstelle list_collaborators Tabelle
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS list_collaborators (
-        id SERIAL PRIMARY KEY,
-        list_id INTEGER NOT NULL,
-        user_id INTEGER NOT NULL,
-        role VARCHAR(50) DEFAULT 'viewer',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (list_id) REFERENCES shopping_lists(id) ON DELETE CASCADE,
-        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-        UNIQUE(list_id, user_id)
-      )
-    `);
-
-    console.log('✓ Datenbank-Tabellen sind ready');
-  } catch (error) {
-    console.error('Fehler beim Initialisieren der Datenbank:', error);
-  }
-};
-
 // Health Check
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'Server läuft!' });
@@ -197,12 +139,11 @@ app.post('/api/auth/register', async (req: AuthRequest, res) => {
     }
 
     // Prüfe ob Email schon existiert
-    const existingUser = await pool.query(
-      'SELECT id FROM users WHERE email = $1',
-      [email]
-    );
+    const existingUser = await prisma.user.findUnique({
+      where: { email }
+    });
 
-    if (existingUser.rows.length > 0) {
+    if (existingUser) {
       return res.status(400).json({ error: 'Email existiert bereits' });
     }
 
@@ -210,12 +151,18 @@ app.post('/api/auth/register', async (req: AuthRequest, res) => {
     const hashedPassword = await bcrypt.hash(password, 10);
 
     // User erstellen
-    const result = await pool.query(
-      'INSERT INTO users (email, username, password_hash) VALUES ($1, $2, $3) RETURNING id, email, username',
-      [email, username, hashedPassword]
-    );
-
-    const user = result.rows[0];
+    const user = await prisma.user.create({
+      data: {
+        email,
+        username,
+        passwordHash: hashedPassword
+      },
+      select: {
+        id: true,
+        email: true,
+        username: true
+      }
+    });
 
     // Token erstellen
     const token = jwt.sign(
@@ -241,19 +188,20 @@ app.post('/api/auth/login', async (req: AuthRequest, res) => {
     }
 
     // User finden
-    const result = await pool.query(
-      'SELECT id, password_hash FROM users WHERE email = $1',
-      [email]
-    );
+    const user = await prisma.user.findUnique({
+      where: { email },
+      select: {
+        id: true,
+        passwordHash: true
+      }
+    });
 
-    if (result.rows.length === 0) {
+    if (!user) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
-    const user = result.rows[0];
-
     // Passwort prüfen
-    const isPasswordCorrect = await bcrypt.compare(password, user.password_hash);
+    const isPasswordCorrect = await bcrypt.compare(password, user.passwordHash);
 
     if (!isPasswordCorrect) {
       return res.status(401).json({ error: 'Invalid credentials' });
@@ -276,16 +224,20 @@ app.post('/api/auth/login', async (req: AuthRequest, res) => {
 // GET aktueller User
 app.get('/api/auth/me', authMiddleware, async (req: AuthRequest, res) => {
   try {
-    const result = await pool.query(
-      'SELECT id, email, username FROM users WHERE id = $1',
-      [req.userId]
-    );
+    const user = await prisma.user.findUnique({
+      where: { id: req.userId },
+      select: {
+        id: true,
+        email: true,
+        username: true
+      }
+    });
 
-    if (result.rows.length === 0) {
+    if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    res.json(result.rows[0]);
+    res.json(user);
   } catch (error) {
     console.error('Error:', error);
     res.status(500).json({ error: 'Internal Server Error' });
@@ -302,19 +254,19 @@ app.put('/api/auth/profile', authMiddleware, async (req: AuthRequest, res) => {
     }
 
     // User abrufen
-    const userResult = await pool.query(
-      'SELECT id, password_hash FROM users WHERE id = $1',
-      [req.userId]
-    );
+    const user = await prisma.user.findUnique({
+      where: { id: req.userId },
+      select: {
+        passwordHash: true
+      }
+    });
 
-    if (userResult.rows.length === 0) {
+    if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    const user = userResult.rows[0];
-
     // Aktuelles Passwort überprüfen
-    const isPasswordCorrect = await bcrypt.compare(currentPassword, user.password_hash);
+    const isPasswordCorrect = await bcrypt.compare(currentPassword, user.passwordHash);
 
     if (!isPasswordCorrect) {
       return res.status(401).json({ error: 'Aktuelles Passwort ist falsch' });
@@ -322,34 +274,36 @@ app.put('/api/auth/profile', authMiddleware, async (req: AuthRequest, res) => {
 
     // Email-Duplikat prüfen (wenn Email geändert wird)
     if (email !== req.body.currentEmail) {
-      const emailExists = await pool.query(
-        'SELECT id FROM users WHERE email = $1 AND id != $2',
-        [email, req.userId]
-      );
+      const existingUser = await prisma.user.findUnique({
+        where: { email }
+      });
 
-      if (emailExists.rows.length > 0) {
+      if (existingUser && existingUser.id !== req.userId) {
         return res.status(400).json({ error: 'Email existiert bereits' });
       }
     }
 
-    // Passwort aktualisieren (falls vorhanden)
-    let updateQuery = 'UPDATE users SET email = $1';
-    let params: any[] = [email, req.userId];
+    // Prepare update data
+    const updateData: any = { email };
 
     if (newPassword) {
       if (newPassword.length < 3) {
         return res.status(400).json({ error: 'Neues Passwort muss mindestens 3 Zeichen lang sein' });
       }
-      const hashedPassword = await bcrypt.hash(newPassword, 10);
-      updateQuery += ', password_hash = $2';
-      params = [email, hashedPassword, req.userId];
+      updateData.passwordHash = await bcrypt.hash(newPassword, 10);
     }
 
-    updateQuery += ' WHERE id = $' + (params.length) + ' RETURNING id, email, username';
+    const updatedUser = await prisma.user.update({
+      where: { id: req.userId },
+      data: updateData,
+      select: {
+        id: true,
+        email: true,
+        username: true
+      }
+    });
 
-    const result = await pool.query(updateQuery, params);
-
-    res.json({ message: 'Profil erfolgreich aktualisiert', user: result.rows[0] });
+    res.json({ message: 'Profil erfolgreich aktualisiert', user: updatedUser });
   } catch (error) {
     console.error('Error:', error);
     res.status(500).json({ error: 'Internal Server Error' });
@@ -361,17 +315,17 @@ app.put('/api/auth/profile', authMiddleware, async (req: AuthRequest, res) => {
 // GET alle Listen des aktuellen Users
 app.get('/api/lists', authMiddleware, async (req: AuthRequest, res) => {
   try {
-    const result = await pool.query(
-      `SELECT l.* FROM shopping_lists l
-       WHERE l.owner_id = $1 
-       OR l.id IN (
-         SELECT list_id FROM list_collaborators WHERE user_id = $1
-       )
-       ORDER BY l.created_at DESC`,
-      [req.userId]
-    );
+    const lists = await prisma.shoppingList.findMany({
+      where: {
+        OR: [
+          { ownerId: req.userId },
+          { collaborators: { some: { userId: req.userId } } }
+        ]
+      },
+      orderBy: { createdAt: 'desc' }
+    });
 
-    res.json(result.rows);
+    res.json(lists);
   } catch (error) {
     console.error('Error:', error);
     res.status(500).json({ error: 'Internal Server Error' });
@@ -383,21 +337,21 @@ app.get('/api/lists/:listId', authMiddleware, async (req: AuthRequest, res) => {
   try {
     const { listId } = req.params;
 
-    const result = await pool.query(
-      `SELECT l.* FROM shopping_lists l
-       WHERE l.id = $1 
-       AND (l.owner_id = $2 
-       OR l.id IN (
-         SELECT list_id FROM list_collaborators WHERE user_id = $2
-       ))`,
-      [listId, req.userId]
-    );
+    const list = await prisma.shoppingList.findFirst({
+      where: {
+        id: parseInt(listId),
+        OR: [
+          { ownerId: req.userId },
+          { collaborators: { some: { userId: req.userId } } }
+        ]
+      }
+    });
 
-    if (result.rows.length === 0) {
+    if (!list) {
       return res.status(404).json({ error: 'Liste nicht gefunden' });
     }
 
-    res.json(result.rows[0]);
+    res.json(list);
   } catch (error) {
     console.error('Error:', error);
     res.status(500).json({ error: 'Internal Server Error' });
@@ -405,7 +359,7 @@ app.get('/api/lists/:listId', authMiddleware, async (req: AuthRequest, res) => {
 });
 
 // POST neue Liste
-app.post('/api/lists', authMiddleware, async (req:  AuthRequest, res) => {
+app.post('/api/lists', authMiddleware, async (req: AuthRequest, res) => {
   try {
     const { title, description } = req.body;
 
@@ -413,24 +367,26 @@ app.post('/api/lists', authMiddleware, async (req:  AuthRequest, res) => {
       return res.status(400).json({ error: 'Title erforderlich' });
     }
 
-    const result = await pool.query(
-      'INSERT INTO shopping_lists (owner_id, title, description) VALUES ($1, $2, $3) RETURNING *',
-      [req.userId, title, description || null]
-    );
+    const list = await prisma.shoppingList.create({
+      data: {
+        ownerId: req.userId!,
+        title,
+        description: description || null
+      }
+    });
 
     // Broadcast an User dass neue Liste erstellt wurde
     broadcastToUser(req.userId!, {
       type: 'list_updated',
-      data: result.rows[0]
+      data: list
     });
 
-    res.status(201).json(result.rows[0]);
+    res.status(201).json(list);
   } catch (error) {
     console.error('Error:', error);
     const errorMsg = (error as Error).message;
     
-    // Wenn Foreign Key Fehler (User nicht vorhanden), dann 401 Unauthorized
-    if (errorMsg.includes('shopping_lists_owner_id_fkey') || errorMsg.includes('users')) {
+    if (errorMsg.includes('users') || errorMsg.includes('Foreign key')) {
       return res.status(401).json({ error: 'User-Sitzung ungültig. Bitte melden Sie sich neu an.' });
     }
     
@@ -449,21 +405,23 @@ app.put('/api/lists/:listId', authMiddleware, async (req: AuthRequest, res) => {
     }
 
     // Prüfe ob User Owner ist
-    const ownerCheck = await pool.query(
-      'SELECT owner_id FROM shopping_lists WHERE id = $1',
-      [listId]
-    );
+    const list = await prisma.shoppingList.findUnique({
+      where: { id: parseInt(listId) }
+    });
 
-    if (ownerCheck.rows.length === 0 || ownerCheck.rows[0].owner_id !== req.userId) {
+    if (!list || list.ownerId !== req.userId) {
       return res.status(403).json({ error: 'Keine Berechtigung' });
     }
 
-    const result = await pool.query(
-      'UPDATE shopping_lists SET title = $1, description = $2 WHERE id = $3 RETURNING *',
-      [title, description || null, listId]
-    );
+    const updatedList = await prisma.shoppingList.update({
+      where: { id: parseInt(listId) },
+      data: {
+        title,
+        description: description || null
+      }
+    });
 
-    res.json(result.rows[0]);
+    res.json(updatedList);
   } catch (error) {
     console.error('Error:', error);
     res.status(500).json({ error: 'Internal Server Error' });
@@ -476,32 +434,18 @@ app.delete('/api/lists/:listId', authMiddleware, async (req: AuthRequest, res) =
     const { listId } = req.params;
 
     // Prüfe ob User Owner ist
-    const ownerCheck = await pool.query(
-      'SELECT owner_id FROM shopping_lists WHERE id = $1',
-      [listId]
-    );
+    const list = await prisma.shoppingList.findUnique({
+      where: { id: parseInt(listId) }
+    });
 
-    if (ownerCheck.rows.length === 0 || ownerCheck.rows[0].owner_id !== req.userId) {
+    if (!list || list.ownerId !== req.userId) {
       return res.status(403).json({ error: 'Keine Berechtigung' });
     }
 
-    // Lösche alle Items
-    await pool.query(
-      'DELETE FROM shopping_list_items WHERE list_id = $1',
-      [listId]
-    );
-
-    // Lösche alle Collaborators
-    await pool.query(
-      'DELETE FROM list_collaborators WHERE list_id = $1',
-      [listId]
-    );
-
-    // Lösche Liste
-    await pool.query(
-      'DELETE FROM shopping_lists WHERE id = $1',
-      [listId]
-    );
+    // Cascading delete wird durch Prisma schema gehandhabt
+    await prisma.shoppingList.delete({
+      where: { id: parseInt(listId) }
+    });
 
     res.json({ message: 'Liste gelöscht' });
   } catch (error) {
@@ -514,28 +458,35 @@ app.delete('/api/lists/:listId', authMiddleware, async (req: AuthRequest, res) =
 app.get('/api/lists/:listId/categories', authMiddleware, async (req: AuthRequest, res) => {
   try {
     const { listId } = req.params;
+    const listIdNum = parseInt(listId);
 
     // Prüfe ob User Zugriff hat
-    const accessCheck = await pool.query(
-      `SELECT id FROM shopping_lists 
-       WHERE id = $1 AND (owner_id = $2 OR id IN (
-         SELECT list_id FROM list_collaborators WHERE user_id = $2
-       ))`,
-      [listId, req.userId]
-    );
+    const list = await prisma.shoppingList.findFirst({
+      where: {
+        id: listIdNum,
+        OR: [
+          { ownerId: req.userId },
+          { collaborators: { some: { userId: req.userId } } }
+        ]
+      }
+    });
 
-    if (accessCheck.rows.length === 0) {
+    if (!list) {
       return res.status(403).json({ error: 'Access denied' });
     }
 
-    // Hole alle eindeutigen Kategorien aus item_categories
-    const result = await pool.query(
-      `SELECT DISTINCT category FROM item_categories WHERE list_id = $1 AND category IS NOT NULL ORDER BY category`,
-      [listId]
-    );
+    // Hole alle eindeutigen Kategorien
+    const categories = await prisma.itemCategory.findMany({
+      where: { 
+        listId: listIdNum,
+        category: { not: null }
+      },
+      select: { category: true },
+      distinct: ['category'],
+      orderBy: { category: 'asc' }
+    });
 
-    const categories = result.rows.map(row => row.category);
-    res.json(categories);
+    res.json(categories.map(c => c.category));
   } catch (error) {
     console.error('Error:', error);
     res.status(500).json({ error: 'Internal Server Error' });
@@ -545,34 +496,34 @@ app.get('/api/lists/:listId/categories', authMiddleware, async (req: AuthRequest
 // DELETE eine Kategorie
 app.delete('/api/lists/:listId/categories/:category', authMiddleware, async (req: AuthRequest, res) => {
   try {
-    const listId = req.params.listId as string;
-    const category = req.params.category as string;
-    const decodedCategory = decodeURIComponent(category);
+    const listId = parseInt(req.params.listId);
+    const category = decodeURIComponent(req.params.category);
 
     // Prüfe ob User Zugriff hat
-    const accessCheck = await pool.query(
-      `SELECT id FROM shopping_lists 
-       WHERE id = $1 AND (owner_id = $2 OR id IN (
-         SELECT list_id FROM list_collaborators WHERE user_id = $2
-       ))`,
-      [listId, req.userId]
-    );
+    const list = await prisma.shoppingList.findFirst({
+      where: {
+        id: listId,
+        OR: [
+          { ownerId: req.userId },
+          { collaborators: { some: { userId: req.userId } } }
+        ]
+      }
+    });
 
-    if (accessCheck.rows.length === 0) {
+    if (!list) {
       return res.status(403).json({ error: 'Access denied' });
     }
 
-    // Setze alle Items mit dieser Kategorie auf null
-    await pool.query(
-      `UPDATE shopping_list_items SET category = NULL WHERE list_id = $1 AND category = $2`,
-      [listId, decodedCategory]
-    );
+    // Update items mit dieser Kategorie
+    await prisma.shoppingListItem.updateMany({
+      where: { listId, category },
+      data: { category: null }
+    });
 
-    // Lösche die Kategorie aus item_categories
-    await pool.query(
-      `DELETE FROM item_categories WHERE list_id = $1 AND category = $2`,
-      [listId, decodedCategory]
-    );
+    // Lösche Kategorien
+    await prisma.itemCategory.deleteMany({
+      where: { listId, category }
+    });
 
     res.json({ message: 'Kategorie gelöscht' });
   } catch (error) {
@@ -587,26 +538,29 @@ app.delete('/api/lists/:listId/categories/:category', authMiddleware, async (req
 app.get('/api/lists/:listId/items', authMiddleware, async (req: AuthRequest, res) => {
   try {
     const { listId } = req.params;
+    const listIdNum = parseInt(listId);
 
     // Prüfe ob User Zugriff hat
-    const accessCheck = await pool.query(
-      `SELECT id FROM shopping_lists 
-       WHERE id = $1 AND (owner_id = $2 OR id IN (
-         SELECT list_id FROM list_collaborators WHERE user_id = $2
-       ))`,
-      [listId, req.userId]
-    );
+    const list = await prisma.shoppingList.findFirst({
+      where: {
+        id: listIdNum,
+        OR: [
+          { ownerId: req.userId },
+          { collaborators: { some: { userId: req.userId } } }
+        ]
+      }
+    });
 
-    if (accessCheck.rows.length === 0) {
+    if (!list) {
       return res.status(403).json({ error: 'Access denied' });
     }
 
-    const result = await pool.query(
-      'SELECT * FROM shopping_list_items WHERE list_id = $1 ORDER BY completed ASC, id',
-      [listId]
-    );
+    const items = await prisma.shoppingListItem.findMany({
+      where: { listId: listIdNum },
+      orderBy: [{ completed: 'asc' }, { id: 'asc' }]
+    });
 
-    res.json(result.rows);
+    res.json(items);
   } catch (error) {
     console.error('Error:', error);
     res.status(500).json({ error: 'Internal Server Error' });
@@ -618,64 +572,72 @@ app.post('/api/lists/:listId/items', authMiddleware, async (req: AuthRequest, re
   try {
     const { listId } = req.params;
     const { name } = req.body;
+    const listIdNum = parseInt(listId);
 
     if (!name) {
       return res.status(400).json({ error: 'Name erforderlich' });
     }
 
-    // Prüfe ob User Editor ist (Owner oder Collaborator)
-    const accessCheck = await pool.query(
-      `SELECT id FROM shopping_lists 
-       WHERE id = $1 AND owner_id = $2
-       UNION
-       SELECT list_id FROM list_collaborators 
-       WHERE list_id = $1 AND user_id = $2`,
-      [listId, req.userId]
-    );
+    // Prüfe ob User Editor ist
+    const hasAccess = await prisma.shoppingList.count({
+      where: {
+        id: listIdNum,
+        OR: [
+          { ownerId: req.userId },
+          { collaborators: { some: { userId: req.userId } } }
+        ]
+      }
+    });
 
-    if (accessCheck.rows.length === 0) {
+    if (hasAccess === 0) {
       return res.status(403).json({ error: 'Access denied' });
     }
 
-    // Prüfe ob ein Item mit gleichem Namen existiert und hole dessen Kategorie
-    const existingItem = await pool.query(
-      'SELECT category FROM shopping_list_items WHERE list_id = $1 AND name = $2 LIMIT 1',
-      [listId, name]
-    );
+    // Finde Kategorie von existierendem Item oder item_categories
+    let category = null;
+    
+    const existingItem = await prisma.shoppingListItem.findFirst({
+      where: { listId: listIdNum, name },
+      select: { category: true }
+    });
 
-    let category = existingItem.rows.length > 0 ? existingItem.rows[0].category : null;
-
-    // Falls kein Item mit dieser Kategorie existiert, prüfe die item_categories Tabelle
-    if (!category) {
-      const savedCategory = await pool.query(
-        'SELECT category FROM item_categories WHERE list_id = $1 AND item_name = $2',
-        [listId, name]
-      );
-      category = savedCategory.rows.length > 0 ? savedCategory.rows[0].category : null;
+    if (existingItem?.category) {
+      category = existingItem.category;
+    } else {
+      const savedCategory = await prisma.itemCategory.findFirst({
+        where: { listId: listIdNum, itemName: name },
+        select: { category: true }
+      });
+      category = savedCategory?.category || null;
     }
 
     console.log(`Adding item "${name}" to list ${listId}. Found category:`, category);
 
-    const result = await pool.query(
-      'INSERT INTO shopping_list_items (list_id, name, category, completed) VALUES ($1, $2, $3, $4) RETURNING *',
-      [listId, name, category, false]
-    );
-
-    // Speichere die Kategorie in item_categories falls sie existiert
-    if (category) {
-      await pool.query(
-        'INSERT INTO item_categories (list_id, item_name, category) VALUES ($1, $2, $3) ON CONFLICT (list_id, item_name) DO UPDATE SET category = $3, updated_at = CURRENT_TIMESTAMP',
-        [listId, name, category]
-      );
-    }
-
-    // Broadcast an alle Collaborators dieser Liste
-    broadcastToListCollaborators(Number(listId), {
-      type: `list_${listId}_updated`,
-      data: { action: 'item_added', item: result.rows[0] }
+    const item = await prisma.shoppingListItem.create({
+      data: {
+        listId: listIdNum,
+        name,
+        category,
+        completed: false
+      }
     });
 
-    res.status(201).json(result.rows[0]);
+    // Speichere in item_categories falls Kategorie existiert
+    if (category) {
+      await prisma.itemCategory.upsert({
+        where: { listId_itemName: { listId: listIdNum, itemName: name } },
+        create: { listId: listIdNum, itemName: name, category },
+        update: { category, updatedAt: new Date() }
+      });
+    }
+
+    // Broadcast
+    broadcastToListCollaborators(listIdNum, {
+      type: `list_${listIdNum}_updated`,
+      data: { action: 'item_added', item }
+    });
+
+    res.status(201).json(item);
   } catch (error) {
     console.error('Error:', error);
     res.status(500).json({ error: 'Internal Server Error' });
@@ -683,40 +645,44 @@ app.post('/api/lists/:listId/items', authMiddleware, async (req: AuthRequest, re
 });
 
 // DELETE Item
-app.delete('/api/lists/:listId/items/:itemId', authMiddleware, async (req:  AuthRequest, res) => {
+app.delete('/api/lists/:listId/items/:itemId', authMiddleware, async (req: AuthRequest, res) => {
   try {
     const { listId, itemId } = req.params;
+    const listIdNum = parseInt(listId);
+    const itemIdNum = parseInt(itemId);
 
     // Prüfe Zugriff
-    const accessCheck = await pool.query(
-      `SELECT id FROM shopping_lists 
-       WHERE id = $1 AND owner_id = $2
-       UNION
-       SELECT list_id FROM list_collaborators 
-       WHERE list_id = $1 AND user_id = $2`,
-      [listId, req.userId]
-    );
+    const hasAccess = await prisma.shoppingList.count({
+      where: {
+        id: listIdNum,
+        OR: [
+          { ownerId: req.userId },
+          { collaborators: { some: { userId: req.userId } } }
+        ]
+      }
+    });
 
-    if (accessCheck.rows.length === 0) {
+    if (hasAccess === 0) {
       return res.status(403).json({ error: 'Access denied' });
     }
 
-    const result = await pool.query(
-      'DELETE FROM shopping_list_items WHERE id = $1 AND list_id = $2 RETURNING *',
-      [itemId, listId]
-    );
+    const item = await prisma.shoppingListItem.delete({
+      where: {
+        id: itemIdNum
+      }
+    });
 
-    if (result.rows.length === 0) {
+    if (!item) {
       return res.status(404).json({ error: 'Item not found' });
     }
 
-    // Broadcast an alle Collaborators
-    broadcastToListCollaborators(Number(listId), {
-      type: `list_${listId}_updated`,
-      data: { action: 'item_deleted', itemId: Number(itemId) }
+    // Broadcast
+    broadcastToListCollaborators(listIdNum, {
+      type: `list_${listIdNum}_updated`,
+      data: { action: 'item_deleted', itemId: itemIdNum }
     });
 
-    res.json({ message: 'Item deleted', item: result.rows[0] });
+    res.json({ message: 'Item deleted', item });
   } catch (error) {
     console.error('Error:', error);
     res.status(500).json({ error: 'Internal Server Error' });
@@ -728,37 +694,36 @@ app.put('/api/lists/:listId/items/:itemId', authMiddleware, async (req: AuthRequ
   try {
     const { listId, itemId } = req.params;
     const { completed } = req.body;
+    const listIdNum = parseInt(listId);
+    const itemIdNum = parseInt(itemId);
 
     // Prüfe Zugriff
-    const accessCheck = await pool.query(
-      `SELECT id FROM shopping_lists 
-       WHERE id = $1 AND owner_id = $2
-       UNION
-       SELECT list_id FROM list_collaborators 
-       WHERE list_id = $1 AND user_id = $2`,
-      [listId, req.userId]
-    );
+    const hasAccess = await prisma.shoppingList.count({
+      where: {
+        id: listIdNum,
+        OR: [
+          { ownerId: req.userId },
+          { collaborators: { some: { userId: req.userId } } }
+        ]
+      }
+    });
 
-    if (accessCheck.rows.length === 0) {
+    if (hasAccess === 0) {
       return res.status(403).json({ error: 'Access denied' });
     }
 
-    const result = await pool.query(
-      'UPDATE shopping_list_items SET completed = $1 WHERE id = $2 AND list_id = $3 RETURNING *',
-      [completed, itemId, listId]
-    );
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Item not found' });
-    }
-
-    // Broadcast an alle Collaborators
-    broadcastToListCollaborators(Number(listId), {
-      type: `list_${listId}_updated`,
-      data: { action: 'item_updated', item: result.rows[0] }
+    const item = await prisma.shoppingListItem.update({
+      where: { id: itemIdNum },
+      data: { completed }
     });
 
-    res.json(result.rows[0]);
+    // Broadcast
+    broadcastToListCollaborators(listIdNum, {
+      type: `list_${listIdNum}_updated`,
+      data: { action: 'item_updated', item }
+    });
+
+    res.json(item);
   } catch (error) {
     console.error('Error:', error);
     res.status(500).json({ error: 'Internal Server Error' });
@@ -768,65 +733,67 @@ app.put('/api/lists/:listId/items/:itemId', authMiddleware, async (req: AuthRequ
 // Update item category
 app.put('/api/lists/:listId/items/:itemId/category', authMiddleware, async (req: AuthRequest, res) => {
   try {
-    const listId = Number(req.params.listId);
-    const itemId = Number(req.params.itemId);
+    const listId = parseInt(req.params.listId);
+    const itemId = parseInt(req.params.itemId);
     const { category } = req.body;
 
     console.log('Update category - listId:', listId, 'itemId:', itemId, 'category:', category);
 
-    // Prüfe Access zur Liste
-    const accessCheck = await pool.query(
-      `SELECT id FROM shopping_lists 
-       WHERE id = $1 AND owner_id = $2
-       UNION
-       SELECT list_id FROM list_collaborators 
-       WHERE list_id = $1 AND user_id = $2`,
-      [listId, req.userId]
-    );
+    // Prüfe Access
+    const hasAccess = await prisma.shoppingList.count({
+      where: {
+        id: listId,
+        OR: [
+          { ownerId: req.userId },
+          { collaborators: { some: { userId: req.userId } } }
+        ]
+      }
+    });
 
-    if (accessCheck.rows.length === 0) {
+    if (hasAccess === 0) {
       return res.status(403).json({ error: 'Access denied' });
     }
 
-    // Hole den Namen des Items
-    const itemData = await pool.query(
-      'SELECT name FROM shopping_list_items WHERE id = $1 AND list_id = $2',
-      [itemId, listId]
-    );
+    // Hole Item-Namen
+    const item = await prisma.shoppingListItem.findUnique({
+      where: { id: itemId },
+      select: { name: true }
+    });
 
-    if (itemData.rows.length === 0) {
+    if (!item) {
       return res.status(404).json({ error: 'Item not found' });
     }
 
-    const itemName = itemData.rows[0].name;
-
-    // Update ALLE Items mit gleichem Namen in dieser Liste
-    const result = await pool.query(
-      'UPDATE shopping_list_items SET category = $1 WHERE list_id = $2 AND name = $3 RETURNING *',
-      [category || null, listId, itemName]
-    );
-
-    // Speichere auch in item_categories für zukünftige Items mit gleichem Namen
-    if (category) {
-      await pool.query(
-        'INSERT INTO item_categories (list_id, item_name, category) VALUES ($1, $2, $3) ON CONFLICT (list_id, item_name) DO UPDATE SET category = $3, updated_at = CURRENT_TIMESTAMP',
-        [listId, itemName, category]
-      );
-    } else {
-      // Falls category null, lösche die gespeicherte Kategorie
-      await pool.query(
-        'DELETE FROM item_categories WHERE list_id = $1 AND item_name = $2',
-        [listId, itemName]
-      );
-    }
-
-    // Broadcast an alle Collaborators
-    broadcastToListCollaborators(listId, {
-      type: `list_${listId}_updated`,
-      data: { action: 'items_updated', items: result.rows }
+    // Update alle Items mit gleichem Namen
+    const items = await prisma.shoppingListItem.updateMany({
+      where: { listId, name: item.name },
+      data: { category: category || null }
     });
 
-    res.json(result.rows[0]);
+    // Speichere in item_categories
+    if (category) {
+      await prisma.itemCategory.upsert({
+        where: { listId_itemName: { listId, itemName: item.name } },
+        create: { listId, itemName: item.name, category },
+        update: { category, updatedAt: new Date() }
+      });
+    } else {
+      await prisma.itemCategory.deleteMany({
+        where: { listId, itemName: item.name }
+      });
+    }
+
+    // Broadcast
+    broadcastToListCollaborators(listId, {
+      type: `list_${listId}_updated`,
+      data: { action: 'items_updated', items }
+    });
+
+    const updatedItem = await prisma.shoppingListItem.findUnique({
+      where: { id: itemId }
+    });
+
+    res.json(updatedItem);
   } catch (error) {
     console.error('Error updating category:', error);
     res.status(500).json({ error: 'Internal Server Error', details: (error as Error).message });
@@ -835,44 +802,39 @@ app.put('/api/lists/:listId/items/:itemId/category', authMiddleware, async (req:
 
 // ============ COLLABORATOR ENDPOINTS ============
 
-// POST Collaborator zu Liste hinzufügen
+// POST Collaborator hinzufügen
 app.post('/api/lists/:listId/collaborators', authMiddleware, async (req: AuthRequest, res) => {
   try {
     const { listId } = req.params;
     const { email, role } = req.body;
+    const listIdNum = parseInt(listId);
 
     // Prüfe ob User Owner ist
-    const ownerCheck = await pool.query(
-      'SELECT id FROM shopping_lists WHERE id = $1 AND owner_id = $2',
-      [listId, req.userId]
-    );
+    const list = await prisma.shoppingList.findUnique({
+      where: { id: listIdNum }
+    });
 
-    if (ownerCheck.rows.length === 0) {
+    if (!list || list.ownerId !== req.userId) {
       return res.status(403).json({ error: 'Only owner can add collaborators' });
     }
 
-    // Finde User mit Email
-    const userResult = await pool.query(
-      'SELECT id FROM users WHERE email = $1',
-      [email]
-    );
+    // Finde User
+    const user = await prisma.user.findUnique({
+      where: { email }
+    });
 
-    if (userResult.rows.length === 0) {
+    if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    const collaboratorId = userResult.rows[0].id;
-
     // Füge Collaborator hinzu
-    const result = await pool.query(
-      `INSERT INTO list_collaborators (list_id, user_id, role) 
-       VALUES ($1, $2, $3) 
-       ON CONFLICT (list_id, user_id) DO UPDATE SET role = $3
-       RETURNING *`,
-      [listId, collaboratorId, role || 'editor']
-    );
+    const collaborator = await prisma.listCollaborator.upsert({
+      where: { listId_userId: { listId: listIdNum, userId: user.id } },
+      create: { listId: listIdNum, userId: user.id, role: role || 'editor' },
+      update: { role: role || 'editor' }
+    });
 
-    res.status(201).json(result.rows[0]);
+    res.status(201).json(collaborator);
   } catch (error) {
     console.error('Error:', error);
     res.status(500).json({ error: 'Internal Server Error' });
@@ -880,32 +842,46 @@ app.post('/api/lists/:listId/collaborators', authMiddleware, async (req: AuthReq
 });
 
 // GET Collaborators einer Liste
-app.get('/api/lists/:listId/collaborators', authMiddleware, async (req:  AuthRequest, res) => {
+app.get('/api/lists/:listId/collaborators', authMiddleware, async (req: AuthRequest, res) => {
   try {
     const { listId } = req.params;
+    const listIdNum = parseInt(listId);
 
-    // Prüfe ob User Owner oder Collaborator ist
-    const accessCheck = await pool.query(
-      `SELECT id FROM shopping_lists 
-       WHERE id = $1 AND (owner_id = $2 OR id IN (
-         SELECT list_id FROM list_collaborators WHERE user_id = $2
-       ))`,
-      [listId, req.userId]
-    );
+    // Prüfe ob User Zugriff hat
+    const hasAccess = await prisma.shoppingList.count({
+      where: {
+        id: listIdNum,
+        OR: [
+          { ownerId: req.userId },
+          { collaborators: { some: { userId: req.userId } } }
+        ]
+      }
+    });
 
-    if (accessCheck.rows.length === 0) {
+    if (hasAccess === 0) {
       return res.status(403).json({ error: 'Access denied' });
     }
 
-    const result = await pool.query(
-      `SELECT lc.id, lc.role, u.id as user_id, u.email, u.username 
-       FROM list_collaborators lc
-       JOIN users u ON lc.user_id = u.id
-       WHERE lc.list_id = $1`,
-      [listId]
-    );
+    const collaborators = await prisma.listCollaborator.findMany({
+      where: { listId: listIdNum },
+      select: {
+        id: true,
+        role: true,
+        user: {
+          select: { id: true, email: true, username: true }
+        }
+      }
+    });
 
-    res.json(result.rows);
+    const formattedCollaborators = collaborators.map(c => ({
+      id: c.id,
+      role: c.role,
+      user_id: c.user.id,
+      email: c.user.email,
+      username: c.user.username
+    }));
+
+    res.json(formattedCollaborators);
   } catch (error) {
     console.error('Error:', error);
     res.status(500).json({ error: 'Internal Server Error' });
@@ -916,23 +892,23 @@ app.get('/api/lists/:listId/collaborators', authMiddleware, async (req:  AuthReq
 app.delete('/api/lists/:listId/collaborators/:collaboratorId', authMiddleware, async (req: AuthRequest, res) => {
   try {
     const { listId, collaboratorId } = req.params;
+    const listIdNum = parseInt(listId);
+    const collaboratorIdNum = parseInt(collaboratorId);
 
     // Prüfe ob User Owner ist
-    const ownerCheck = await pool.query(
-      'SELECT id FROM shopping_lists WHERE id = $1 AND owner_id = $2',
-      [listId, req.userId]
-    );
+    const list = await prisma.shoppingList.findUnique({
+      where: { id: listIdNum }
+    });
 
-    if (ownerCheck.rows.length === 0) {
+    if (!list || list.ownerId !== req.userId) {
       return res.status(403).json({ error: 'Only owner can remove collaborators' });
     }
 
-    const result = await pool.query(
-      'DELETE FROM list_collaborators WHERE id = $1 AND list_id = $2 RETURNING *',
-      [collaboratorId, listId]
-    );
+    const collaborator = await prisma.listCollaborator.delete({
+      where: { id: collaboratorIdNum }
+    });
 
-    if (result.rows.length === 0) {
+    if (!collaborator) {
       return res.status(404).json({ error: 'Collaborator not found' });
     }
 
@@ -947,61 +923,46 @@ app.delete('/api/lists/:listId/collaborators/:collaboratorId', authMiddleware, a
 // RECIPES API
 // ============================================
 
-// Get all recipes for the authenticated user
+// Get all recipes
 app.get('/api/recipes', authMiddleware, async (req: AuthRequest, res) => {
   try {
-    const userId = req.userId;
+    const recipes = await prisma.recipe.findMany({
+      where: { ownerId: req.userId },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        items: {
+          orderBy: { createdAt: 'asc' }
+        }
+      }
+    });
 
-    const result = await pool.query(
-      `SELECT id, title, description, created_at FROM recipes WHERE owner_id = $1 ORDER BY created_at DESC`,
-      [userId]
-    );
-
-    // Get items for each recipe
-    const recipesWithItems = await Promise.all(
-      result.rows.map(async (recipe) => {
-        const itemsResult = await pool.query(
-          `SELECT id, name, category FROM recipe_items WHERE recipe_id = $1 ORDER BY created_at`,
-          [recipe.id]
-        );
-        return {
-          ...recipe,
-          items: itemsResult.rows
-        };
-      })
-    );
-
-    res.json(recipesWithItems);
+    res.json(recipes);
   } catch (error) {
     console.error('Error:', error);
     res.status(500).json({ error: 'Internal Server Error' });
   }
 });
 
-// Get single recipe with items
+// Get single recipe
 app.get('/api/recipes/:id', authMiddleware, async (req: AuthRequest, res) => {
   try {
-    const userId = req.userId;
-    const recipeId = parseInt(req.params.id as string);
+    const recipeId = parseInt(req.params.id);
 
-    const recipeResult = await pool.query(
-      `SELECT id, title, description, created_at FROM recipes WHERE id = $1 AND owner_id = $2`,
-      [recipeId, userId]
-    );
+    const recipe = await prisma.recipe.findFirst({
+      where: {
+        id: recipeId,
+        ownerId: req.userId
+      },
+      include: {
+        items: {
+          orderBy: { createdAt: 'asc' }
+        }
+      }
+    });
 
-    if (recipeResult.rows.length === 0) {
+    if (!recipe) {
       return res.status(404).json({ error: 'Recipe not found' });
     }
-
-    const itemsResult = await pool.query(
-      `SELECT id, name, category FROM recipe_items WHERE recipe_id = $1 ORDER BY created_at`,
-      [recipeId]
-    );
-
-    const recipe = {
-      ...recipeResult.rows[0],
-      items: itemsResult.rows
-    };
 
     res.json(recipe);
   } catch (error) {
@@ -1010,47 +971,33 @@ app.get('/api/recipes/:id', authMiddleware, async (req: AuthRequest, res) => {
   }
 });
 
-// Create new recipe
+// Create recipe
 app.post('/api/recipes', authMiddleware, async (req: AuthRequest, res) => {
   try {
-    const userId = req.userId;
     const { title, description, items } = req.body;
 
     if (!title) {
       return res.status(400).json({ error: 'Title is required' });
     }
 
-    const recipeResult = await pool.query(
-      `INSERT INTO recipes (owner_id, title, description) VALUES ($1, $2, $3) RETURNING id, title, description, created_at`,
-      [userId, title, description || null]
-    );
-
-    const recipeId = recipeResult.rows[0].id;
-
-    // Add items if provided
-    if (items && Array.isArray(items) && items.length > 0) {
-      const itemValues = items
-        .map((item: any, idx: number) => {
-          const baseIdx = idx * 3;
-          return `($${baseIdx + 1}, $${baseIdx + 2}, $${baseIdx + 3})`;
-        })
-        .join(', ');
-
-      const itemParams: any[] = [];
-      items.forEach((item: any) => {
-        itemParams.push(recipeId, item.name, item.category || null);
-      });
-
-      await pool.query(
-        `INSERT INTO recipe_items (recipe_id, name, category) VALUES ${itemValues}`,
-        itemParams
-      );
-    }
-
-    const recipe = {
-      ...recipeResult.rows[0],
-      items: items || []
-    };
+    const recipe = await prisma.recipe.create({
+      data: {
+        ownerId: req.userId!,
+        title,
+        description: description || null,
+        items: {
+          create: items && Array.isArray(items) 
+            ? items.map((item: any) => ({
+                name: item.name,
+                category: item.category || null
+              }))
+            : []
+        }
+      },
+      include: {
+        items: true
+      }
+    });
 
     res.status(201).json(recipe);
   } catch (error) {
@@ -1062,37 +1009,30 @@ app.post('/api/recipes', authMiddleware, async (req: AuthRequest, res) => {
 // Update recipe
 app.put('/api/recipes/:id', authMiddleware, async (req: AuthRequest, res) => {
   try {
-    const userId = req.userId;
-    const recipeId = parseInt(req.params.id as string);
+    const recipeId = parseInt(req.params.id);
     const { title, description } = req.body;
 
     // Check ownership
-    const ownerCheck = await pool.query(
-      `SELECT id FROM recipes WHERE id = $1 AND owner_id = $2`,
-      [recipeId, userId]
-    );
+    const recipe = await prisma.recipe.findFirst({
+      where: { id: recipeId, ownerId: req.userId }
+    });
 
-    if (ownerCheck.rows.length === 0) {
+    if (!recipe) {
       return res.status(403).json({ error: 'Only owner can update recipe' });
     }
 
-    const result = await pool.query(
-      `UPDATE recipes SET title = $1, description = $2 WHERE id = $3 RETURNING id, title, description, created_at`,
-      [title, description || null, recipeId]
-    );
+    const updatedRecipe = await prisma.recipe.update({
+      where: { id: recipeId },
+      data: {
+        title,
+        description: description || null
+      },
+      include: {
+        items: true
+      }
+    });
 
-    // Get items
-    const itemsResult = await pool.query(
-      `SELECT id, name, category FROM recipe_items WHERE recipe_id = $1 ORDER BY created_at`,
-      [recipeId]
-    );
-
-    const recipe = {
-      ...result.rows[0],
-      items: itemsResult.rows
-    };
-
-    res.json(recipe);
+    res.json(updatedRecipe);
   } catch (error) {
     console.error('Error:', error);
     res.status(500).json({ error: 'Internal Server Error' });
@@ -1102,23 +1042,20 @@ app.put('/api/recipes/:id', authMiddleware, async (req: AuthRequest, res) => {
 // Delete recipe
 app.delete('/api/recipes/:id', authMiddleware, async (req: AuthRequest, res) => {
   try {
-    const userId = req.userId;
-    const recipeId = parseInt(req.params.id as string);
+    const recipeId = parseInt(req.params.id);
 
     // Check ownership
-    const ownerCheck = await pool.query(
-      `SELECT id FROM recipes WHERE id = $1 AND owner_id = $2`,
-      [recipeId, userId]
-    );
+    const recipe = await prisma.recipe.findFirst({
+      where: { id: recipeId, ownerId: req.userId }
+    });
 
-    if (ownerCheck.rows.length === 0) {
+    if (!recipe) {
       return res.status(403).json({ error: 'Only owner can delete recipe' });
     }
 
-    await pool.query(
-      `DELETE FROM recipes WHERE id = $1`,
-      [recipeId]
-    );
+    await prisma.recipe.delete({
+      where: { id: recipeId }
+    });
 
     res.json({ message: 'Recipe deleted' });
   } catch (error) {
@@ -1130,8 +1067,7 @@ app.delete('/api/recipes/:id', authMiddleware, async (req: AuthRequest, res) => 
 // Add item to recipe
 app.post('/api/recipes/:id/items', authMiddleware, async (req: AuthRequest, res) => {
   try {
-    const userId = req.userId;
-    const recipeId = parseInt(req.params.id as string);
+    const recipeId = parseInt(req.params.id);
     const { name, category } = req.body;
 
     if (!name) {
@@ -1139,21 +1075,23 @@ app.post('/api/recipes/:id/items', authMiddleware, async (req: AuthRequest, res)
     }
 
     // Check ownership
-    const ownerCheck = await pool.query(
-      `SELECT id FROM recipes WHERE id = $1 AND owner_id = $2`,
-      [recipeId, userId]
-    );
+    const recipe = await prisma.recipe.findFirst({
+      where: { id: recipeId, ownerId: req.userId }
+    });
 
-    if (ownerCheck.rows.length === 0) {
+    if (!recipe) {
       return res.status(403).json({ error: 'Only owner can add items' });
     }
 
-    const result = await pool.query(
-      `INSERT INTO recipe_items (recipe_id, name, category) VALUES ($1, $2, $3) RETURNING id, name, category`,
-      [recipeId, name, category || null]
-    );
+    const item = await prisma.recipeItem.create({
+      data: {
+        recipeId,
+        name,
+        category: category || null
+      }
+    });
 
-    res.status(201).json(result.rows[0]);
+    res.status(201).json(item);
   } catch (error) {
     console.error('Error:', error);
     res.status(500).json({ error: 'Internal Server Error' });
@@ -1163,24 +1101,21 @@ app.post('/api/recipes/:id/items', authMiddleware, async (req: AuthRequest, res)
 // Delete item from recipe
 app.delete('/api/recipes/:id/items/:itemId', authMiddleware, async (req: AuthRequest, res) => {
   try {
-    const userId = req.userId;
-    const recipeId = parseInt(req.params.id as string);
-    const itemId = parseInt(req.params.itemId as string);
+    const recipeId = parseInt(req.params.id);
+    const itemId = parseInt(req.params.itemId);
 
     // Check ownership
-    const ownerCheck = await pool.query(
-      `SELECT r.id FROM recipes r WHERE r.id = $1 AND r.owner_id = $2`,
-      [recipeId, userId]
-    );
+    const recipe = await prisma.recipe.findFirst({
+      where: { id: recipeId, ownerId: req.userId }
+    });
 
-    if (ownerCheck.rows.length === 0) {
+    if (!recipe) {
       return res.status(403).json({ error: 'Only owner can delete items' });
     }
 
-    await pool.query(
-      `DELETE FROM recipe_items WHERE id = $1 AND recipe_id = $2`,
-      [itemId, recipeId]
-    );
+    await prisma.recipeItem.delete({
+      where: { id: itemId }
+    });
 
     res.json({ message: 'Item deleted' });
   } catch (error) {
@@ -1192,67 +1127,62 @@ app.delete('/api/recipes/:id/items/:itemId', authMiddleware, async (req: AuthReq
 // Add recipe items to shopping list
 app.post('/api/recipes/:id/add-to-list', authMiddleware, async (req: AuthRequest, res) => {
   try {
-    const userId = req.userId;
-    const recipeId = parseInt(req.params.id as string);
+    const recipeId = parseInt(req.params.id);
     const { listId } = req.body;
 
     if (!listId) {
       return res.status(400).json({ error: 'listId is required' });
     }
 
-    // Check recipe ownership and get recipe name
-    const recipeCheck = await pool.query(
-      `SELECT id, title FROM recipes WHERE id = $1 AND owner_id = $2`,
-      [recipeId, userId]
-    );
+    // Check recipe ownership
+    const recipe = await prisma.recipe.findFirst({
+      where: { id: recipeId, ownerId: req.userId },
+      include: { items: true }
+    });
 
-    if (recipeCheck.rows.length === 0) {
+    if (!recipe) {
       return res.status(403).json({ error: 'Recipe not found' });
     }
 
-    const recipeName = recipeCheck.rows[0].title;
+    // Check list access
+    const hasListAccess = await prisma.shoppingList.count({
+      where: {
+        id: listId,
+        OR: [
+          { ownerId: req.userId },
+          { collaborators: { some: { userId: req.userId } } }
+        ]
+      }
+    });
 
-    // Check list access (owner or collaborator)
-    const listAccessCheck = await pool.query(
-      `SELECT id FROM shopping_lists WHERE id = $1 AND owner_id = $2
-       UNION
-       SELECT list_id as id FROM list_collaborators WHERE list_id = $1 AND user_id = $2`,
-      [listId, userId]
-    );
-
-    if (listAccessCheck.rows.length === 0) {
+    if (hasListAccess === 0) {
       return res.status(403).json({ error: 'No access to list' });
     }
 
-    // Get all items from recipe
-    const itemsResult = await pool.query(
-      `SELECT name, category FROM recipe_items WHERE recipe_id = $1`,
-      [recipeId]
-    );
+    // Add items to shopping list
+    const itemsToAdd = recipe.items.map(item => ({
+      listId,
+      name: `${item.name} (${recipe.title})`,
+      category: item.category || null,
+      completed: false
+    }));
 
-    // Add items to shopping list with recipe name
-    const itemsToAdd = itemsResult.rows;
-    for (const item of itemsToAdd) {
-      const itemNameWithRecipe = `${item.name} (${recipeName})`;
-      const category = item.category || null;
-      
-      // Füge Item zur Liste hinzu
-      await pool.query(
-        `INSERT INTO shopping_list_items (list_id, name, category, completed) VALUES ($1, $2, $3, FALSE)`,
-        [listId, itemNameWithRecipe, category]
-      );
-      
-      // Speichere Kategorie in item_categories (für Persistenz)
-      if (category) {
-        await pool.query(
-          `INSERT INTO item_categories (list_id, item_name, category) VALUES ($1, $2, $3)
-           ON CONFLICT (list_id, item_name) DO UPDATE SET category = $3`,
-          [listId, itemNameWithRecipe, category]
-        );
+    for (const itemData of itemsToAdd) {
+      await prisma.shoppingListItem.create({
+        data: itemData
+      });
+
+      // Save category
+      if (itemData.category) {
+        await prisma.itemCategory.upsert({
+          where: { listId_itemName: { listId, itemName: itemData.name } },
+          create: { listId, itemName: itemData.name, category: itemData.category },
+          update: { category: itemData.category, updatedAt: new Date() }
+        });
       }
     }
 
-    // Broadcast to list collaborators
+    // Broadcast
     await broadcastToListCollaborators(listId, {
       type: 'LIST_UPDATED',
       listId
@@ -1267,11 +1197,17 @@ app.post('/api/recipes/:id/add-to-list', authMiddleware, async (req: AuthRequest
 
 // Server starten
 const startServer = async () => {
-  await initializeDatabase();
   server.listen(PORT, () => {
     console.log(`Server läuft auf http://localhost:${PORT}`);
     console.log(`WebSocket läuft auf ws://localhost:${PORT}`);
   });
 };
+
+// Graceful shutdown
+process.on('SIGINT', async () => {
+  console.log('Fahre Server herunter...');
+  await prisma.$disconnect();
+  process.exit(0);
+});
 
 startServer();
