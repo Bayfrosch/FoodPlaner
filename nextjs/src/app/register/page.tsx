@@ -35,6 +35,7 @@ export default function RegisterPage() {
             localStorage.setItem('userId',data.userId);
             router.push('/dashboard');
         } catch (err) {
+            // Expected error on auth pages - just show to user, don't log to console
             setError(err instanceof Error ? err.message :  'Registrierung fehlgeschlagen')
         } finally {
             setLoading(false);

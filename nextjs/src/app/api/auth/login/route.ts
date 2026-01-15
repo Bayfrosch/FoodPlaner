@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
 
     if (!user) {
       return NextResponse.json(
-        { error: 'Invalid credentials' },
+        { error: 'Email or password incorrect' },
         { status: 401 }
       );
     }
@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
     const passwordMatch = await bcrypt.compare(password, user.passwordHash);
     if (!passwordMatch) {
       return NextResponse.json(
-        { error: 'Invalid credentials' },
+        { error: 'Email or password incorrect' },
         { status: 401 }
       );
     }

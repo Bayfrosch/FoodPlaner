@@ -38,14 +38,16 @@ export const apiCall = async (
       error = { error: `HTTP ${response.status}: ${response.statusText}` };
     }
     
-    // Falls 401 (Unauthorized) → redirect zu Login
-    if (response.status === 401) {
-      if (typeof window !== 'undefined') {
+    // Falls 401 (Unauthorized) and not on login page → redirect zu Login
+    if (response.status === 401 && typeof window !== 'undefined') {
+      const isLoginPage = window.location.pathname === '/login';
+      const isRegisterPage = window.location.pathname === '/register';
+      
+      if (!isLoginPage && !isRegisterPage) {
         localStorage.removeItem('token');
         localStorage.removeItem('userId');
         window.location.href = '/login';
       }
-      throw new Error('Session expired. Please login again.');
     }
     
     throw new Error(error.error || 'API Error');

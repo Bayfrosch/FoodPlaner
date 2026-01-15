@@ -12,7 +12,7 @@ interface List {
     id: number;
     title: string;
     description: string;
-    created_at: string;
+    createdAt: string;
 }
 
 type DashboardView = 'lists' | 'recipes';

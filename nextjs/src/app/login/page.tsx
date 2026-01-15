@@ -19,7 +19,7 @@ export default function LoginPage() {
         }
 
         setLoading(true);
-        setError('');
+        setError(null);
 
         try {
             console.log('Attempting login with:', email);
@@ -29,10 +29,12 @@ export default function LoginPage() {
             localStorage.setItem('userId', String(data.userId));
             console.log('Token saved:', localStorage.getItem('token'));
             console.log('Navigating to dashboard...');
+            setError(null);
             router.push('/dashboard');
         } catch (err) {
-            console.error('Login error:', err);
-            setError(err instanceof Error ? err.message :  'Login fehlgeschlagen');
+            // Expected error on auth pages - just show to user, don't log to console
+            const errorMessage = err instanceof Error ? err.message : 'Login fehlgeschlagen';
+            setError(errorMessage);
         } finally {
             setLoading(false);
         }
