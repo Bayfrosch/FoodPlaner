@@ -1,9 +1,12 @@
 import { useState } from 'react';
 import { recipes } from '../api';
+import { parseLinks } from '@/lib/linkParser';
+import ShareRecipeModal from './ShareRecipeModal';
 
 interface RecipeItem {
   id?: number;
   name: string;
+  count?: number;
 }
 
 interface Recipe {
@@ -11,6 +14,9 @@ interface Recipe {
   title: string;
   description: string;
   items: RecipeItem[];
+  ownerId?: number;
+  owner?: { id: number; username: string };
+  collaborators?: Array<{ role: string }>;
 }
 
 interface RecipeCardProps {
@@ -18,9 +24,10 @@ interface RecipeCardProps {
   shoppingLists: Array<{ id: number; title: string }>;
   onDelete: () => void;
   onEdit: (recipe: Recipe) => void;
+  currentUserId?: number;
 }
 
-export default function RecipeCard({ recipe, shoppingLists, onDelete, onEdit }: RecipeCardProps) {
+export default function RecipeCard({ recipe, shoppingLists, onDelete, onEdit, currentUserId }: RecipeCardProps) {
   const [expanded, setExpanded] = useState(false);
   const [descriptionExpanded, setDescriptionExpanded] = useState(false);
   const [selectedListId, setSelectedListId] = useState<number | null>(null);
@@ -30,6 +37,12 @@ export default function RecipeCard({ recipe, shoppingLists, onDelete, onEdit }: 
   const [success, setSuccess] = useState('');
   const [showDropdown, setShowDropdown] = useState(false);
   const [selectedItems, setSelectedItems] = useState<number[]>([]);
+  const [showShareModal, setShowShareModal] = useState(false);
+
+  const isOwner = currentUserId && (recipe.ownerId === currentUserId || recipe.owner?.id === currentUserId);
+  const userRole = recipe.collaborators && recipe.collaborators.length > 0 ? recipe.collaborators[0].role : null;
+  const canEdit = isOwner || userRole === 'editor';
+  const canView = isOwner || userRole === 'viewer' || userRole === 'editor';
 
   // Ensure items is always an array
   const items = recipe.items || [];
@@ -83,34 +96,72 @@ export default function RecipeCard({ recipe, shoppingLists, onDelete, onEdit }: 
   };
 
   return (
-    <div className="bg-gradient-to-br from-[#14141f]/90 to-[#1a1a2e]/90 backdrop-blur-sm border border-purple-500/30 rounded-3xl p-6 shadow-lg hover:shadow-purple-500/20 transition-all">
-      <div className="flex items-start justify-between gap-4 mb-4">
-        <div className="flex-1">
-          <h3 className="text-xl font-bold text-white mb-1">{recipe.title}</h3>
-          <p className="text-gray-400 text-sm">{items.length} Zutat(en)</p>
+    <>
+      <div className="bg-gradient-to-br from-[#14141f]/90 to-[#1a1a2e]/90 backdrop-blur-sm border border-purple-500/30 rounded-3xl p-6 shadow-lg hover:shadow-purple-500/20 transition-all">
+        <div className="flex items-start justify-between gap-4 mb-4">
+          <div className="flex-1">
+            <h3 className="text-xl font-bold text-white mb-1">{recipe.title}</h3>
+            <div className="flex items-center gap-2">
+              <p className="text-gray-400 text-sm">{items.length} Zutat(en)</p>
+              {recipe.owner && !isOwner && (
+                <span className="text-xs text-purple-400 bg-purple-500/20 px-2 py-0.5 rounded-full">
+                  von {recipe.owner.username}
+                </span>
+              )}
+            </div>
+          </div>
+          <div className="flex gap-2">
+            {isOwner && (
+              <button
+                onClick={() => setShowShareModal(true)}
+                className="px-3 py-2 bg-purple-500/20 border border-purple-500/50 hover:bg-purple-500/30 text-purple-400 rounded-xl text-sm font-medium transition-all"
+                title="Rezept teilen"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                </svg>
+              </button>
+            )}
+            {canEdit && (
+              <button
+                onClick={() => onEdit(recipe)}
+                className="px-3 py-2 bg-blue-500/20 border border-blue-500/50 hover:bg-blue-500/30 text-blue-400 rounded-xl text-sm font-medium transition-all"
+              >
+                Edit
+              </button>
+            )}
+            {isOwner && (
+              <button
+                onClick={handleDelete}
+                disabled={deleting}
+                className="px-3 py-2 bg-red-500/20 border border-red-500/50 hover:bg-red-500/30 disabled:opacity-50 disabled:cursor-not-allowed text-red-400 rounded-xl text-sm font-medium transition-all"
+              >
+                {deleting ? 'Wird gelöscht...' : 'Delete'}
+              </button>
+            )}
+          </div>
         </div>
-        <div className="flex gap-2">
-          <button
-            onClick={() => onEdit(recipe)}
-            className="px-3 py-2 bg-blue-500/20 border border-blue-500/50 hover:bg-blue-500/30 text-blue-400 rounded-xl text-sm font-medium transition-all"
-          >
-            Edit
-          </button>
-          <button
-            onClick={handleDelete}
-            disabled={deleting}
-            className="px-3 py-2 bg-red-500/20 border border-red-500/50 hover:bg-red-500/30 disabled:opacity-50 disabled:cursor-not-allowed text-red-400 rounded-xl text-sm font-medium transition-all"
-          >
-            {deleting ? 'Wird gelöscht...' : 'Delete'}
-          </button>
-        </div>
-      </div>
 
       {/* Description */}
       {recipe.description && (
         <div>
           <div className={`text-gray-300 text-sm mb-2 whitespace-pre-wrap ${!descriptionExpanded ? 'line-clamp-2' : ''}`}>
-            {recipe.description}
+            {parseLinks(recipe.description).map((part, index) => 
+              part.type === 'link' ? (
+                <a
+                  key={index}
+                  href={part.content.startsWith('www.') ? `https://${part.content}` : part.content}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-400 hover:text-blue-300 hover:underline transition-colors"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {part.content}
+                </a>
+              ) : (
+                <span key={index}>{part.content}</span>
+              )
+            )}
           </div>
           {recipe.description.split('\n').length > 2 && (
             <button
@@ -227,7 +278,7 @@ export default function RecipeCard({ recipe, shoppingLists, onDelete, onEdit }: 
               </button>
 
               {showDropdown && (
-                <div className="absolute top-full left-0 right-0 mt-2 bg-[#14141f] border border-purple-500/40 rounded-2xl shadow-2xl z-40 overflow-hidden backdrop-blur-sm animate-in fade-in slide-in-from-top-2 duration-200">
+                <div className="absolute top-full left-0 right-0 mt-2 bg-[#14141f] border border-purple-500/40 rounded-2xl shadow-2xl z-50 overflow-hidden backdrop-blur-sm animate-in fade-in slide-in-from-top-2 duration-200">
                   <div className="max-h-64 overflow-y-auto">
                     {shoppingLists.length === 0 ? (
                       <div className="px-4 py-3 text-gray-400 text-sm text-center">
@@ -275,5 +326,15 @@ export default function RecipeCard({ recipe, shoppingLists, onDelete, onEdit }: 
         </div>
       )}
     </div>
+
+      {/* Share Modal */}
+      {showShareModal && (
+        <ShareRecipeModal
+          recipeId={recipe.id}
+          recipeOwnerId={recipe.ownerId || recipe.owner?.id || 0}
+          onClose={() => setShowShareModal(false)}
+        />
+      )}
+    </>
   );
 }

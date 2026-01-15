@@ -135,10 +135,10 @@ export const lists = {
 export const items = {
   getAll: (listId: number) => apiCall(`/lists/${listId}/items`),
 
-  create: (listId: number, name: string) =>
+  create: (listId: number, name: string, count = 1) =>
     apiCall(`/lists/${listId}/items`, {
       method: 'POST',
-      body: JSON.stringify({ name }),
+      body: JSON.stringify({ name, count }),
     }),
 
   update: (listId: number, itemId: number, completed: boolean) =>
@@ -228,4 +228,17 @@ export const recipes = {
       method: 'POST',
       body: JSON.stringify({ listId, selectedItemIds }),
     }),
+
+  // Recipe collaborators
+  getCollaborators: (recipeId: number) =>
+    apiCall(`/recipes/${recipeId}/collaborators`),
+
+  inviteCollaborator: (recipeId: number, username: string, role: 'editor' | 'viewer') =>
+    apiCall(`/recipes/${recipeId}/collaborators`, {
+      method: 'POST',
+      body: JSON.stringify({ username, role }),
+    }),
+
+  removeCollaborator: (recipeId: number, collaboratorId: number) =>
+    apiCall(`/recipes/${recipeId}/collaborators/${collaboratorId}`, { method: 'DELETE' }),
 };

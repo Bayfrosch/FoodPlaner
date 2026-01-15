@@ -22,7 +22,10 @@ export async function GET(
 
     const recipe = await prisma.recipe.findUnique({
       where: { id: recipeId },
-      include: { items: true }
+      include: { 
+        items: true,
+        collaborators: { where: { userId } }
+      }
     });
 
     if (!recipe) {
@@ -32,8 +35,8 @@ export async function GET(
       );
     }
 
-    // Check if user owns this recipe
-    if (recipe.ownerId !== userId) {
+    // Check if user owns this recipe or is a collaborator
+    if (recipe.ownerId !== userId && recipe.collaborators.length === 0) {
       return NextResponse.json(
         { error: 'Forbidden' },
         { status: 403 }
@@ -68,7 +71,8 @@ export async function PUT(
     const { title, description, items } = await req.json();
 
     const recipe = await prisma.recipe.findUnique({
-      where: { id: recipeId }
+      where: { id: recipeId },
+      include: { collaborators: { where: { userId } } }
     });
 
     if (!recipe) {
@@ -78,9 +82,13 @@ export async function PUT(
       );
     }
 
-    if (recipe.ownerId !== userId) {
+    // Check if user owns this recipe or is an editor
+    const isOwner = recipe.ownerId === userId;
+    const isEditor = recipe.collaborators.length > 0 && recipe.collaborators[0].role === 'editor';
+    
+    if (!isOwner && !isEditor) {
       return NextResponse.json(
-        { error: 'Forbidden' },
+        { error: 'Forbidden - you need editor permission' },
         { status: 403 }
       );
     }
@@ -100,7 +108,8 @@ export async function PUT(
           items: {
             create: items.map((item: any) => ({
               name: item.name,
-              category: item.category || null
+              category: item.category || null,
+              count: item.count || 1
             }))
           }
         },
@@ -157,9 +166,10 @@ export async function DELETE(
       );
     }
 
+    // Only owner can delete recipes
     if (recipe.ownerId !== userId) {
       return NextResponse.json(
-        { error: 'Forbidden' },
+        { error: 'Forbidden - only owner can delete' },
         { status: 403 }
       );
     }

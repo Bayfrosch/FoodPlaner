@@ -13,6 +13,9 @@ interface Item {
     name: string;
     category: string | null;
     completed: boolean;
+    count: number;
+    recipeIds: number[];
+    recipeNames: string[];
     created_at: string;
 }
 
@@ -47,6 +50,7 @@ export default function ListDetailPage() {
     const [list, setList] = useState<List | null>(null);
     const [items, setItems] = useState<Item[]>([]);
     const [newItemName, setNewItemName] = useState('');
+    const [newItemCount, setNewItemCount] = useState('1');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [showShareModal, setShowShareModal] = useState(false);
@@ -185,7 +189,9 @@ export default function ListDetailPage() {
         }
 
         const tempName = newItemName.trim();
+        const count = parseInt(newItemCount) || 1;
         setNewItemName('');
+        setNewItemCount('1');
         
         // Optimistic update - add item immediately to UI
         const tempId = -Date.now(); // Temporary negative ID
@@ -194,12 +200,15 @@ export default function ListDetailPage() {
             name: tempName,
             category: null,
             completed: false,
+            count: count,
+            recipeIds: [],
+            recipeNames: [],
             created_at: new Date().toISOString(),
         };
         setItems(prevItems => [...prevItems, optimisticItem]);
 
         try {
-            const newItem = await itemsApi.create(Number(listId), tempName);
+            const newItem = await itemsApi.create(Number(listId), tempName, count);
             // Replace temporary item with real one
             setItems(prevItems => prevItems.map(item => 
                 item.id === tempId ? newItem : item
@@ -255,6 +264,37 @@ export default function ListDetailPage() {
         }
     }, [listId, items]);
 
+    const handleDeleteCheckedItems = useCallback(async () => {
+        if (!listId) return;
+
+        const checkedItems = items.filter(item => item.completed);
+        if (checkedItems.length === 0) {
+            setError('Keine abgehakten Artikel zum Löschen');
+            return;
+        }
+
+        if (!confirm(`${checkedItems.length} abgehakte Artikel wirklich löschen?`)) {
+            return;
+        }
+
+        // Store items for potential rollback
+        const itemsToDelete = checkedItems;
+        
+        // Optimistic update - remove checked items immediately from UI
+        setItems(prevItems => prevItems.filter(item => !item.completed));
+
+        try {
+            // Delete all checked items in parallel
+            await Promise.all(
+                itemsToDelete.map(item => itemsApi.delete(Number(listId), item.id))
+            );
+        } catch (err) {
+            // Rollback on error - restore all checked items
+            setItems(prevItems => [...prevItems, ...itemsToDelete]);
+            setError(err instanceof Error ? err.message : 'Fehler beim Löschen der Artikel');
+        }
+    }, [listId, items]);
+
     const handleAddCategory = useCallback((categoryName: string) => {
         if (!customCategories.includes(categoryName)) {
             setCustomCategories(prev => [...prev, categoryName]);
@@ -300,11 +340,15 @@ export default function ListDetailPage() {
             return acc;
         }, {});
 
-        // Sort items within each category (uncompleted first)
+        // Sort items within each category: uncompleted first, then alphabetically
         Object.keys(grouped).forEach((category) => {
             grouped[category].sort((a: Item, b: Item) => {
-                if (a.completed === b.completed) return 0;
-                return a.completed ? 1 : -1;
+                // First priority: checked/uncompleted (uncompleted first)
+                if (a.completed !== b.completed) {
+                    return a.completed ? 1 : -1;
+                }
+                // Second priority: alphabetical
+                return a.name.localeCompare(b.name);
             });
         });
 
@@ -395,18 +439,6 @@ export default function ListDetailPage() {
                             <span className="sm:hidden">Zurück</span>
                         </button>
                         <div className="flex gap-1 sm:gap-3 flex-shrink-0">
-                            {currentUserCollaborator && currentUserCollaborator.status === 'pending' && (
-                                <button
-                                    onClick={handleAcceptInvitation}
-                                    className="inline-flex items-center gap-1 sm:gap-2 text-green-400 hover:text-green-300 text-xs sm:text-sm font-medium transition-all group"
-                                    title="Einladung akzeptieren"
-                                >
-                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                    </svg>
-                                    <span className="hidden sm:inline">Akzeptieren</span>
-                                </button>
-                            )}
                             {currentUserCollaborator && !userRole.isOwner && (
                                 <button
                                     onClick={handleLeaveList}
@@ -461,7 +493,7 @@ export default function ListDetailPage() {
 
                 {/* Add Item Form */}
                 <form onSubmit={handleAddItem} className="mb-4 sm:mb-6 w-full">
-                    <div className="flex gap-2 sm:gap-3">
+                    <div className="flex gap-2 sm:gap-3 mb-3 sm:mb-4">
                         <div className="relative flex-1">
                             <input
                                 type="text"
@@ -470,6 +502,16 @@ export default function ListDetailPage() {
                                 placeholder="Neuen Artikel hinzufügen..."
                                 disabled={userRole.isViewer}
                                 className="w-full px-3 sm:px-5 py-3 sm:py-4 bg-[#14141f] border border-[#2d2d3f] rounded-lg sm:rounded-2xl text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                            />
+                        </div>
+                        <div className="relative">
+                            <input
+                                type="text"
+                                value={newItemCount}
+                                onChange={(e) => setNewItemCount(e.target.value)}
+                                placeholder="1"
+                                disabled={userRole.isViewer}
+                                className="w-16 sm:w-20 px-2 sm:px-3 py-3 sm:py-4 bg-[#14141f] border border-[#2d2d3f] rounded-lg sm:rounded-2xl text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-sm text-center"
                             />
                         </div>
                         <button
@@ -487,6 +529,22 @@ export default function ListDetailPage() {
                         <p className="text-yellow-500 text-xs sm:text-sm mt-2">Du hast nur Zugriff als Zuschauer</p>
                     )}
                 </form>
+
+                {/* Delete Checked Items Button */}
+                {items.some(item => item.completed) && (
+                    <div className="mb-4 sm:mb-6 w-full">
+                        <button
+                            onClick={handleDeleteCheckedItems}
+                            disabled={userRole.isViewer}
+                            className="w-full px-4 sm:px-6 py-2 sm:py-3 bg-gradient-to-r from-red-500/20 to-red-600/20 hover:from-red-500/30 hover:to-red-600/30 text-red-400 hover:text-red-300 font-bold rounded-lg sm:rounded-2xl transition-all border border-red-500/30 hover:border-red-500/50 text-sm sm:text-base disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                        >
+                            <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                            <span>Abgehakte Artikel löschen ({items.filter(item => item.completed).length})</span>
+                        </button>
+                    </div>
+                )}
 
                 {/* Items List */}
                 {items.length === 0 ? (
@@ -526,9 +584,10 @@ export default function ListDetailPage() {
                                             name={item.name}
                                             category={item.category}
                                             completed={item.completed}
+                                            count={item.count}
+                                            recipeNames={item.recipeNames}
                                             listId={Number(listId)}
                                             customCategories={customCategories}
-                                            recipeName={(item as any).recipeName}
                                             onToggle={handleToggleItem}
                                             onDelete={handleDeleteItem}
                                             onCategoryChange={handleCategoryChange}

@@ -5,6 +5,7 @@ interface RecipeItem {
   id?: number;
   name: string;
   category?: string;
+  count?: number;
 }
 
 interface RecipeModalProps {
@@ -25,6 +26,7 @@ export default function RecipeModal({ isOpen, onClose, onSave, recipe }: RecipeM
   const [items, setItems] = useState<RecipeItem[]>([]);
   const [newItemName, setNewItemName] = useState('');
   const [newItemCategory, setNewItemCategory] = useState('');
+  const [newItemCount, setNewItemCount] = useState('1');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [customCategories, setCustomCategories] = useState<string[]>([]);
@@ -53,15 +55,22 @@ export default function RecipeModal({ isOpen, onClose, onSave, recipe }: RecipeM
     setItems([]);
     setNewItemName('');
     setNewItemCategory('');
+    setNewItemCount('1');
     setError('');
   };
 
   const handleAddItem = () => {
     if (newItemName.trim()) {
-      const newItem = { name: newItemName, category: newItemCategory || undefined };
+      const count = parseInt(newItemCount) || 1;
+      const newItem = { 
+        name: newItemName, 
+        category: newItemCategory || undefined,
+        count: count
+      };
       setItems([...items, newItem]);
       setNewItemName('');
       setNewItemCategory('');
+      setNewItemCount('1');
     } else {
       setError('Bitte einen Zutatnamen eingeben');
     }
@@ -157,6 +166,13 @@ export default function RecipeModal({ isOpen, onClose, onSave, recipe }: RecipeM
                 placeholder="Zutat hinzufügen..."
                 className="flex-1 px-3 md:px-4 py-2 md:py-3 text-sm md:text-base bg-[#1a1a2e] border border-purple-500/30 rounded-2xl text-white placeholder-gray-500 focus:outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-500/30 transition-all"
               />
+              <input
+                type="text"
+                value={newItemCount}
+                onChange={(e) => setNewItemCount(e.target.value)}
+                placeholder="1"
+                className="w-20 px-3 md:px-4 py-2 md:py-3 text-sm md:text-base bg-[#1a1a2e] border border-purple-500/30 rounded-2xl text-white placeholder-gray-500 focus:outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-500/30 transition-all text-center"
+              />
               <button
                 type="button"
                 onClick={handleAddItem}
@@ -185,7 +201,12 @@ export default function RecipeModal({ isOpen, onClose, onSave, recipe }: RecipeM
             {items.map((item, index) => (
               <div key={index} className="flex items-center justify-between bg-[#1a1a2e] border border-purple-500/20 rounded-2xl px-3 md:px-4 py-2 md:py-3">
                 <div className="flex-1 min-w-0">
-                  <span className="text-gray-300 text-sm md:text-base break-words">{item.name}</span>
+                  <div className="flex items-center gap-2">
+                    {item.count && item.count > 1 && (
+                      <span className="text-purple-400 font-semibold text-sm">{item.count}x</span>
+                    )}
+                    <span className="text-gray-300 text-sm md:text-base break-words">{item.name}</span>
+                  </div>
                   {item.category && (
                     <div className="text-xs text-purple-400 mt-1">{item.category}</div>
                   )}

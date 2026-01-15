@@ -14,10 +14,22 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // Get all recipes owned by the user
+    // Get all recipes owned by the user OR shared with the user
     const recipes = await prisma.recipe.findMany({
-      where: { ownerId: userId },
-      include: { items: true }
+      where: {
+        OR: [
+          { ownerId: userId },
+          { collaborators: { some: { userId } } }
+        ]
+      },
+      include: { 
+        items: true,
+        owner: { select: { id: true, username: true } },
+        collaborators: { 
+          where: { userId },
+          select: { role: true }
+        }
+      }
     });
 
     return NextResponse.json(recipes);
@@ -58,7 +70,8 @@ export async function POST(req: NextRequest) {
         items: {
           create: items.map((item: any) => ({
             name: item.name,
-            category: item.category || null
+            category: item.category || null,
+            count: item.count || 1
           }))
         }
       },

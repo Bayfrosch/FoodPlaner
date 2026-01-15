@@ -70,7 +70,7 @@ export async function POST(
 
     const { id } = await params;
     const listId = parseInt(id);
-    const { name } = await req.json();
+    const { name, count = 1 } = await req.json();
 
     if (!name) {
       return NextResponse.json(
@@ -104,39 +104,57 @@ export async function POST(
       );
     }
 
-    // Check if this item name has a saved category
-    const itemCategory = await prisma.itemCategory.findUnique({
+    // Check if item with same name already exists (case-insensitive)
+    const existingItem = await prisma.shoppingListItem.findFirst({
       where: {
-        listId_itemName: {
-          listId,
-          itemName: name
+        listId,
+        name: {
+          equals: name,
+          mode: 'insensitive'
         }
       }
     });
 
-    const item = await prisma.shoppingListItem.create({
-      data: {
-        name,
-        listId,
-        category: itemCategory?.category || null,
-        completed: false
-      }
-    });
+    let item;
+    if (existingItem) {
+      // Update existing item: add to count
+      item = await prisma.shoppingListItem.update({
+        where: { id: existingItem.id },
+        data: {
+          count: existingItem.count + count,
+          completed: false // Reset completed when adding more
+        }
+      });
+    } else {
+      // Check if this item name has a saved category
+      const itemCategory = await prisma.itemCategory.findUnique({
+        where: {
+          listId_itemName: {
+            listId,
+            itemName: name
+          }
+        }
+      });
+
+      // Create new item
+      item = await prisma.shoppingListItem.create({
+        data: {
+          name,
+          listId,
+          category: itemCategory?.category || null,
+          completed: false,
+          count: count
+        }
+        });
+    }
 
     // Broadcast update to all subscribers
     broadcastListUpdate(listId, {
-      type: 'item_created',
-      item,
-      // Include category mapping if item has a category
-      ...(itemCategory?.category && {
-        category_updated: {
-          itemName: name,
-          category: itemCategory.category
-        }
-      })
+      type: existingItem ? 'item_updated' : 'item_created',
+      item
     });
 
-    return NextResponse.json(item, { status: 201 });
+    return NextResponse.json(item, { status: existingItem ? 200 : 201 });
   } catch (error) {
     console.error('Create item error:', error);
     return NextResponse.json(

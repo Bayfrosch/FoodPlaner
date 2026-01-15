@@ -1,24 +1,24 @@
 import { useState, useEffect } from 'react';
-import { collaborators, lists, auth } from '../api';
+import { recipes, auth } from '../api';
 
 interface Collaborator {
   id: number;
-  listId: number;
+  recipeId: number;
   userId: number;
   role: 'editor' | 'viewer';
-  status: string;
   user: {
     id: number;
     username: string;
   };
 }
 
-interface ShareListModalProps {
-  listId: number;
+interface ShareRecipeModalProps {
+  recipeId: number;
+  recipeOwnerId: number;
   onClose: () => void;
 }
 
-export default function ShareListModal({ listId, onClose }: ShareListModalProps) {
+export default function ShareRecipeModal({ recipeId, recipeOwnerId, onClose }: ShareRecipeModalProps) {
   const [collaboratorsList, setCollaboratorsList] = useState<Collaborator[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -33,16 +33,13 @@ export default function ShareListModal({ listId, onClose }: ShareListModalProps)
   useEffect(() => {
     checkOwnership();
     fetchCollaborators();
-  }, [listId]);
+  }, [recipeId]);
 
   const checkOwnership = async () => {
     try {
       setIsOwnerLoading(true);
-      const [me, list] = await Promise.all([
-        auth.me(),
-        lists.getById(listId)
-      ]);
-      setIsOwner(me.id === list.ownerId);
+      const me = await auth.me();
+      setIsOwner(me.id === recipeOwnerId);
     } catch (err) {
       console.error('Could not check ownership:', err);
       setIsOwner(false);
@@ -54,7 +51,7 @@ export default function ShareListModal({ listId, onClose }: ShareListModalProps)
   const fetchCollaborators = async () => {
     try {
       setLoading(true);
-      const data = await collaborators.getAll(listId);
+      const data = await recipes.getCollaborators(recipeId);
       setCollaboratorsList(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Fehler beim Laden der Kollaboratoren');
@@ -76,15 +73,13 @@ export default function ShareListModal({ listId, onClose }: ShareListModalProps)
 
     setInviting(true);
     try {
-      // Backend wird Benutzername in User-ID umwandeln
-      await collaborators.invite(listId, inviteUsername, inviteRole);
-      setSuccess('Einladung erfolgreich versendet!');
+      await recipes.inviteCollaborator(recipeId, inviteUsername, inviteRole);
+      setSuccess('Benutzer erfolgreich hinzugefügt!');
       setInviteUsername('');
       setInviteRole('viewer');
-      // Neu laden
       setTimeout(() => fetchCollaborators(), 500);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Fehler beim Versenden der Einladung');
+      setError(err instanceof Error ? err.message : 'Fehler beim Hinzufügen des Benutzers');
     } finally {
       setInviting(false);
     }
@@ -94,7 +89,7 @@ export default function ShareListModal({ listId, onClose }: ShareListModalProps)
     if (!confirm('Diesen Nutzer entfernen?')) return;
 
     try {
-      await collaborators.remove(listId, collaboratorId);
+      await recipes.removeCollaborator(recipeId, collaboratorId);
       setSuccess('Nutzer entfernt');
       fetchCollaborators();
     } catch (err) {
@@ -103,16 +98,23 @@ export default function ShareListModal({ listId, onClose }: ShareListModalProps)
   };
 
   return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-gradient-to-br from-[#14141f]/95 to-[#1a1a2e]/95 backdrop-blur-xl border border-purple-500/30 rounded-3xl max-w-md w-full shadow-2xl shadow-purple-500/30">
+    <div 
+      className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+      onClick={onClose}
+    >
+      <div 
+        className="bg-gradient-to-br from-[#14141f]/95 to-[#1a1a2e]/95 backdrop-blur-xl border border-purple-500/30 rounded-3xl max-w-md w-full shadow-2xl shadow-purple-500/30"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="p-8">
           <div className="flex items-center justify-between mb-6">
-            <h2 className="text-2xl font-bold text-white">Liste teilen</h2>
+            <h2 className="text-2xl font-bold text-white">Rezept teilen</h2>
             <button
               onClick={onClose}
-              className="text-gray-400 hover:text-gray-300 text-lg font-bold"
+              className="text-gray-400 hover:text-gray-300 text-2xl font-bold transition-colors"
+              type="button"
             >
-              Close
+              ×
             </button>
           </div>
 
@@ -130,7 +132,7 @@ export default function ShareListModal({ listId, onClose }: ShareListModalProps)
 
           {!isOwnerLoading && !isOwner && (
             <div className="bg-yellow-500/10 border border-yellow-500/30 text-yellow-400 px-4 py-3 rounded-xl text-sm mb-4 backdrop-blur-sm">
-              Du kannst Kollaboratoren nur hinzufügen, wenn du der Besitzer der Liste bist.
+              Du kannst Benutzer nur hinzufügen, wenn du der Besitzer des Rezepts bist.
             </div>
           )}
 
@@ -162,7 +164,7 @@ export default function ShareListModal({ listId, onClose }: ShareListModalProps)
                 disabled={inviting}
                 className="w-full px-4 py-2 text-white bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 disabled:from-gray-600 disabled:to-gray-700 rounded-xl font-bold transition-all shadow-lg shadow-purple-500/40"
               >
-                {inviting ? 'Wird eingeladen...' : 'Einladen'}
+                {inviting ? 'Wird hinzugefügt...' : 'Benutzer hinzufügen'}
               </button>
             </form>
           )}
@@ -170,13 +172,13 @@ export default function ShareListModal({ listId, onClose }: ShareListModalProps)
           {/* Kollaboratoren */}
           <div>
             <h3 className="text-sm font-bold text-gray-300 mb-3">
-              Kollaboratoren ({collaboratorsList.length})
+              Geteilte Benutzer ({collaboratorsList.length})
             </h3>
 
             {loading ? (
               <p className="text-gray-400 text-sm">Lädt...</p>
             ) : collaboratorsList.length === 0 ? (
-              <p className="text-gray-400 text-sm">Keine Kollaboratoren</p>
+              <p className="text-gray-400 text-sm">Rezept noch nicht geteilt</p>
             ) : (
               <div className="space-y-2 max-h-64 overflow-y-auto">
                 {collaboratorsList.map((collab) => (
@@ -190,15 +192,17 @@ export default function ShareListModal({ listId, onClose }: ShareListModalProps)
                         {collab.role === 'editor' ? 'Bearbeiter' : 'Betrachter'}
                       </p>
                     </div>
-                    <button
-                      onClick={() => handleRemoveCollaborator(collab.id)}
-                      className="p-1 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded transition-all"
-                      title="Entfernen"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                    </button>
+                    {isOwner && (
+                      <button
+                        onClick={() => handleRemoveCollaborator(collab.id)}
+                        className="p-1 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded transition-all"
+                        title="Entfernen"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
+                    )}
                   </div>
                 ))}
               </div>

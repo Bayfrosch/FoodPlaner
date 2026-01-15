@@ -6,9 +6,10 @@ interface ListItemWithCategoryProps {
   name: string;
   category: string | null;
   completed: boolean;
+  count: number;
+  recipeNames: string[];
   listId: number;
   customCategories: string[];
-  recipeName?: string | null;
   onToggle: (itemId: number, completed: boolean) => void;
   onDelete: (itemId: number) => void;
   onCategoryChange: (itemId: number, newCategory: string | null) => void;
@@ -24,9 +25,10 @@ const ListItemWithCategory = memo(function ListItemWithCategory({
   name,
   category,
   completed,
+  count,
+  recipeNames,
   listId,
   customCategories,
-  recipeName,
   onToggle,
   onDelete,
   onCategoryChange,
@@ -110,15 +112,25 @@ const ListItemWithCategory = memo(function ListItemWithCategory({
           </svg>
         </div>
         <div className="flex-1 min-w-0">
-          <span
-            className={`block transition-all truncate ${
-              completed ? 'text-gray-500 line-through' : 'text-gray-200'
-            }`}
-          >
-            {name}
-          </span>
-          {recipeName && (
-            <span className="text-xs text-blue-400 block mt-1">Rezept: {recipeName}</span>
+          <div className="flex items-center gap-2">
+            {count > 1 && (
+              <span className="text-purple-400 font-semibold text-sm flex-shrink-0">{count}x</span>
+            )}
+            <span
+              className={`block transition-all truncate ${
+                completed ? 'text-gray-500 line-through' : 'text-gray-200'
+              }`}
+            >
+              {name}
+            </span>
+          </div>
+          {recipeNames && recipeNames.length > 0 && (
+            <span className="text-xs text-blue-400 block mt-1">
+              {recipeNames.length === 1 
+                ? `Rezept: ${recipeNames[0]}`
+                : `Rezepte: ${recipeNames.join(', ')}`
+              }
+            </span>
           )}
           {category && (
             <span className="text-xs text-purple-400 block mt-1">{category}</span>

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { recipes } from '@/api';
+import { recipes, auth } from '@/api';
 import RecipeCard from '@/components/RecipeCard';
 import RecipeModal from '@/components/RecipeModal';
 
@@ -9,7 +9,10 @@ interface Recipe {
   id: number;
   title: string;
   description: string;
-  items: Array<{ id?: number; name: string }>;
+  items: Array<{ id?: number; name: string; count?: number }>;
+  ownerId?: number;
+  owner?: { id: number; username: string };
+  collaborators?: Array<{ role: string }>;
 }
 
 interface ShoppingList {
@@ -27,10 +30,21 @@ export default function RecipesPage({ shoppingLists }: RecipesPageProps) {
   const [error, setError] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedRecipe, setSelectedRecipe] = useState<Recipe | undefined>(undefined);
+  const [currentUserId, setCurrentUserId] = useState<number | undefined>(undefined);
 
   useEffect(() => {
+    fetchCurrentUser();
     fetchRecipes();
   }, []);
+
+  const fetchCurrentUser = async () => {
+    try {
+      const me = await auth.me();
+      setCurrentUserId(me.id);
+    } catch (err) {
+      console.error('Could not fetch current user:', err);
+    }
+  };
 
   const fetchRecipes = async () => {
     try {
@@ -124,6 +138,7 @@ export default function RecipesPage({ shoppingLists }: RecipesPageProps) {
               shoppingLists={shoppingLists}
               onDelete={handleDeleteRecipe}
               onEdit={handleOpenModal}
+              currentUserId={currentUserId}
             />
           ))}
         </div>

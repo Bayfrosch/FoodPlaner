@@ -79,20 +79,54 @@ export async function POST(
       ? recipe.items.filter((_, idx) => selectedItemIds.includes(idx))
       : recipe.items;
 
-    // Add selected recipe items to the list
-    const createdItems = await Promise.all(
-      itemsToAdd.map(item =>
-        prisma.shoppingListItem.create({
-          data: {
+    // Process each item: merge if exists, create if new
+    const processedItems = await Promise.all(
+      itemsToAdd.map(async (item) => {
+        // Check if item with same name already exists (case-insensitive)
+        const existingItem = await prisma.shoppingListItem.findFirst({
+          where: {
             listId,
-            name: item.name,
-            category: item.category || null,
-            completed: false,
-            recipeId: recipe.id,
-            recipeName: recipe.title
+            name: {
+              equals: item.name,
+              mode: 'insensitive'
+            }
           }
-        })
-      )
+        });
+
+        if (existingItem) {
+          // Update existing item: add count, add recipe to arrays
+          const updatedRecipeIds = existingItem.recipeIds.includes(recipe.id)
+            ? existingItem.recipeIds
+            : [...existingItem.recipeIds, recipe.id];
+          
+          const updatedRecipeNames = existingItem.recipeNames.includes(recipe.title)
+            ? existingItem.recipeNames
+            : [...existingItem.recipeNames, recipe.title];
+
+          return prisma.shoppingListItem.update({
+            where: { id: existingItem.id },
+            data: {
+              count: existingItem.count + item.count,
+              recipeIds: updatedRecipeIds,
+              recipeNames: updatedRecipeNames,
+              completed: false // Reset completed when adding from recipe
+            }
+          });
+        } else {
+          // Create new item
+          return prisma.shoppingListItem.create({
+            data: {
+              listId,
+              name: item.name,
+              category: item.category || null,
+              completed: false,
+              count: item.count,
+              recipeIds: [recipe.id],
+              recipeNames: [recipe.title]
+            }
+          });
+        }
+      })
     );
 
     // Create ItemCategory mappings for items with categories
@@ -121,9 +155,8 @@ export async function POST(
     // Broadcast update to all subscribers
     broadcastListUpdate(listId, {
       type: 'items_added',
-      count: createdItems.length,
-      items: createdItems,
-      // Include category updates for items with categories
+      count: processedItems.length,
+      items: processedItems,
       categoryUpdates: categoryUpdates.filter(u => u !== null).map(u => ({
         itemName: u?.itemName,
         category: u?.category
@@ -132,7 +165,7 @@ export async function POST(
 
     return NextResponse.json({ 
       success: true, 
-      itemsAdded: createdItems.length 
+      itemsAdded: processedItems.length 
     }, { status: 201 });
   } catch (error) {
     console.error('Add recipe to list error:', error);

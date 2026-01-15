@@ -20,6 +20,7 @@ model User {
   ownedLists ShoppingList[] @relation("owner")
   collaborations ListCollaborator[]
   recipes   Recipe[] @relation("owner")
+  recipeCollaborations RecipeCollaborator[]
 
   @@map("users")
 }
@@ -47,8 +48,9 @@ model ShoppingListItem {
   name      String
   category  String?
   completed Boolean @default(false)
-  recipeId  Int?    @map("recipe_id")
-  recipeName String? @map("recipe_name")
+  count     Int     @default(1)
+  recipeIds Int[]   @default([]) @map("recipe_ids")
+  recipeNames String[] @default([]) @map("recipe_names")
   createdAt DateTime @default(now()) @map("created_at")
 
   // Beziehungen
@@ -83,6 +85,7 @@ model Recipe {
   // Beziehungen
   owner     User     @relation("owner", fields: [ownerId], references: [id], onDelete: Cascade)
   items     RecipeItem[]
+  collaborators RecipeCollaborator[]
 
   @@map("recipes")
 }
@@ -92,6 +95,7 @@ model RecipeItem {
   recipeId  Int     @map("recipe_id")
   name      String
   category  String?
+  count     Int     @default(1)
   createdAt DateTime @default(now()) @map("created_at")
 
   // Beziehungen
@@ -125,4 +129,19 @@ model CategoryOrder {
 
   @@unique([listId])
   @@map("category_orders")
+}
+
+model RecipeCollaborator {
+  id        Int     @id @default(autoincrement())
+  recipeId  Int     @map("recipe_id")
+  userId    Int     @map("user_id")
+  role      String  @default("viewer")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Beziehungen
+  recipe    Recipe  @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([recipeId, userId])
+  @@map("recipe_collaborators")
 }
