@@ -21,7 +21,7 @@ export default function ShareListModal({ listId, onClose }: ShareListModalProps)
   const [isOwner, setIsOwner] = useState(false);
   const [isOwnerLoading, setIsOwnerLoading] = useState(true);
   
-  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteUsername, setInviteUsername] = useState('');
   const [inviteRole, setInviteRole] = useState<'editor' | 'viewer'>('viewer');
   const [inviting, setInviting] = useState(false);
 
@@ -64,17 +64,17 @@ export default function ShareListModal({ listId, onClose }: ShareListModalProps)
     setError('');
     setSuccess('');
 
-    if (!inviteEmail.trim()) {
-      setError('Email erforderlich');
+    if (!inviteUsername.trim()) {
+      setError('Benutzername erforderlich');
       return;
     }
 
     setInviting(true);
     try {
-      // Backend wird Email in User-ID umwandeln
-      await collaborators.invite(listId, inviteEmail, inviteRole);
+      // Backend wird Benutzername in User-ID umwandeln
+      await collaborators.invite(listId, inviteUsername, inviteRole);
       setSuccess('Einladung erfolgreich versendet!');
-      setInviteEmail('');
+      setInviteUsername('');
       setInviteRole('viewer');
       // Neu laden
       setTimeout(() => fetchCollaborators(), 500);
@@ -132,12 +132,12 @@ export default function ShareListModal({ listId, onClose }: ShareListModalProps)
           {/* Einladungsformular */}
           {isOwner && (
             <form onSubmit={handleInvite} className="mb-6 pb-6 border-b border-purple-500/20">
-              <label className="block text-gray-300 text-sm font-medium mb-2">Email des Nutzers</label>
+              <label className="block text-gray-300 text-sm font-medium mb-2">Benutzername</label>
               <input
-                type="email"
-                value={inviteEmail}
-                onChange={(e) => setInviteEmail(e.target.value)}
-                placeholder="user@example.com"
+                type="text"
+                value={inviteUsername}
+                onChange={(e) => setInviteUsername(e.target.value)}
+                placeholder="benutzername"
                 className="w-full px-4 py-2 bg-[#1a1a2e] border border-purple-500/30 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-500/30 transition-all mb-3"
                 required
               />

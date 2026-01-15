@@ -57,7 +57,7 @@ export async function PUT(
     const updatedCollaborator = await prisma.listCollaborator.update({
       where: { id: collaboratorRecordId },
       data: { role },
-      include: { user: { select: { id: true, email: true, username: true } } }
+      include: { user: { select: { id: true, username: true } } }
     });
 
     return NextResponse.json(updatedCollaborator);

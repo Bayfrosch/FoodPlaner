@@ -42,6 +42,8 @@ export default function ListDetailPage() {
     const [customCategories, setCustomCategories] = useState<string[]>([]);
     const [isClient, setIsClient] = useState(false);
     const [userRole, setUserRole] = useState<UserRole>({ isOwner: false, isEditor: true, isViewer: false });
+    const [draggedCategory, setDraggedCategory] = useState<string | null>(null);
+    const [savingCategoryOrder, setSavingCategoryOrder] = useState(false);
 
     useEffect(() => {
         setIsClient(true);
@@ -191,6 +193,52 @@ export default function ListDetailPage() {
         }
     };
 
+    const handleCategoryDragStart = (e: React.DragEvent<HTMLDivElement>, category: string) => {
+        if (userRole.isViewer) return;
+        setDraggedCategory(category);
+        e.dataTransfer.effectAllowed = 'move';
+    };
+
+    const handleCategoryDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+    };
+
+    const handleCategoryDrop = async (e: React.DragEvent<HTMLDivElement>, targetCategory: string) => {
+        e.preventDefault();
+        if (!draggedCategory || draggedCategory === targetCategory || userRole.isViewer) {
+            setDraggedCategory(null);
+            return;
+        }
+
+        const draggedIndex = customCategories.indexOf(draggedCategory);
+        const targetIndex = customCategories.indexOf(targetCategory);
+
+        if (draggedIndex === -1 || targetIndex === -1) {
+            setDraggedCategory(null);
+            return;
+        }
+
+        const newCategories = [...customCategories];
+        newCategories.splice(draggedIndex, 1);
+        newCategories.splice(targetIndex, 0, draggedCategory);
+
+        setCustomCategories(newCategories);
+        setDraggedCategory(null);
+
+        // Save to backend
+        setSavingCategoryOrder(true);
+        try {
+            await lists.updateCategoryOrder(Number(listId), newCategories);
+        } catch (err) {
+            // Revert on error
+            setCustomCategories(customCategories);
+            setError(err instanceof Error ? err.message : 'Fehler beim Speichern der Kategorie-Reihenfolge');
+        } finally {
+            setSavingCategoryOrder(false);
+        }
+    };
+
     if (loading) {
         return (
             <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center">
@@ -225,16 +273,18 @@ export default function ListDetailPage() {
                             </svg>
                             Zurück zu Listen
                         </button>
-                        <button
-                            onClick={() => setShowShareModal(true)}
-                            className="inline-flex items-center gap-2 text-purple-400 hover:text-purple-300 text-sm font-medium transition-all group"
-                            title="Liste teilen"
-                        >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-                            </svg>
-                            Teilen
-                        </button>
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => setShowShareModal(true)}
+                                className="inline-flex items-center gap-2 text-purple-400 hover:text-purple-300 text-sm font-medium transition-all group"
+                                title="Liste teilen"
+                            >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                                </svg>
+                                Teilen
+                            </button>
+                        </div>
                     </div>
                     <div className="flex items-center justify-center gap-4">
                         <div className="flex-1 text-center max-w-md">
@@ -318,17 +368,46 @@ export default function ListDetailPage() {
                                 });
                             });
 
-                            // Sortiere Kategorien (Ohne Kategorie zuletzt)
+                            // Sortiere Kategorien nach custom order, dann alphabetisch
                             const sortedCategories = Object.keys(grouped).sort((a, b) => {
+                                const aIndex = customCategories.indexOf(a);
+                                const bIndex = customCategories.indexOf(b);
+                                
+                                // If both are in custom order, use that order
+                                if (aIndex !== -1 && bIndex !== -1) {
+                                    return aIndex - bIndex;
+                                }
+                                // If only one is in custom order, it goes first
+                                if (aIndex !== -1) return -1;
+                                if (bIndex !== -1) return 1;
+                                
+                                // For categories not in custom order, put "Ohne Kategorie" last
                                 if (a === 'Ohne Kategorie') return 1;
                                 if (b === 'Ohne Kategorie') return -1;
                                 return a.localeCompare(b);
                             });
 
                             return sortedCategories.map((category) => (
-                                <div key={category} className="bg-gradient-to-br from-[#14141f] to-[#1a1a2e] border border-[#2d2d3f] rounded-2xl shadow-xl">
-                                    <div className="bg-purple-500/10 border-b border-[#2d2d3f] px-4 py-3 rounded-t-2xl">
-                                        <h3 className="text-sm font-semibold text-purple-400">{category}</h3>
+                                <div 
+                                    key={category} 
+                                    className="bg-gradient-to-br from-[#14141f] to-[#1a1a2e] border border-[#2d2d3f] rounded-2xl shadow-xl"
+                                    onDragOver={handleCategoryDragOver}
+                                    onDrop={(e) => handleCategoryDrop(e, category)}
+                                >
+                                    <div 
+                                        draggable={!userRole.isViewer}
+                                        onDragStart={(e) => handleCategoryDragStart(e, category)}
+                                        className={`bg-purple-500/10 border-b border-[#2d2d3f] px-4 py-3 rounded-t-2xl flex items-center gap-3 transition-all ${
+                                            !userRole.isViewer ? 'cursor-move hover:bg-purple-500/20' : ''
+                                        } ${draggedCategory === category ? 'opacity-50 bg-purple-500/30' : ''}`}
+                                        title={userRole.isViewer ? '' : 'Kategorie ziehen zum Umsortieren'}
+                                    >
+                                        {!userRole.isViewer && (
+                                            <svg className="w-5 h-5 text-gray-500 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
+                                                <path d="M9 3h2v2H9V3zm0 4h2v2H9V7zm0 4h2v2H9v-2zm4-8h2v2h-2V3zm0 4h2v2h-2V7zm0 4h2v2h-2v-2z" />
+                                            </svg>
+                                        )}
+                                        <h3 className="text-sm font-semibold text-purple-400 flex-1">{category}</h3>
                                     </div>
                                     <ul className="divide-y divide-[#2d2d3f]">
                                         {grouped[category].map((item: Item) => (

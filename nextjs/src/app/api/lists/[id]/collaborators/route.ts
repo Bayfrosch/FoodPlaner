@@ -47,7 +47,7 @@ export async function GET(
     // Get all collaborators
     const collaborators = await prisma.listCollaborator.findMany({
       where: { listId },
-      include: { user: { select: { id: true, email: true, username: true } } }
+      include: { user: { select: { id: true, username: true } } }
     });
 
     return NextResponse.json(collaborators);
@@ -75,11 +75,11 @@ export async function POST(
 
     const { id } = await params;
     const listId = parseInt(id);
-    const { email, role = 'viewer' } = await req.json();
+    const { username, role = 'viewer' } = await req.json();
 
-    if (!email) {
+    if (!username) {
       return NextResponse.json(
-        { error: 'Email is required' },
+        { error: 'Username is required' },
         { status: 400 }
       );
     }
@@ -105,9 +105,9 @@ export async function POST(
       );
     }
 
-    // Find user by email
+    // Find user by username
     const invitedUser = await prisma.user.findUnique({
-      where: { email }
+      where: { username }
     });
 
     if (!invitedUser) {
@@ -141,7 +141,7 @@ export async function POST(
         userId: invitedUser.id,
         role
       },
-      include: { user: { select: { id: true, email: true, username: true } } }
+      include: { user: { select: { id: true, username: true } } }
     });
 
     return NextResponse.json(collaborator, { status: 201 });

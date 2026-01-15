@@ -119,6 +119,14 @@ export const lists = {
 
   deleteCategory: (id: number, category: string) =>
     apiCall(`/lists/${id}/categories/${encodeURIComponent(category)}`, { method: 'DELETE' }),
+
+  getCategoryOrder: (id: number) => apiCall(`/lists/${id}/categories/order`),
+
+  updateCategoryOrder: (id: number, categories: string[]) =>
+    apiCall(`/lists/${id}/categories/order`, {
+      method: 'PUT',
+      body: JSON.stringify({ categories }),
+    }),
 };
 
 // ============================================
@@ -156,10 +164,10 @@ export const collaborators = {
   getAll: (listId: number) =>
     apiCall(`/lists/${listId}/collaborators`),
 
-  invite: (listId: number, email: string, role: 'editor' | 'viewer') =>
+  invite: (listId: number, username: string, role: 'editor' | 'viewer') =>
     apiCall(`/lists/${listId}/collaborators`, {
       method: 'POST',
-      body: JSON.stringify({ email, role }),
+      body: JSON.stringify({ username, role }),
     }),
 
   add: (listId: number, userId: number, role: 'editor' | 'viewer') =>
