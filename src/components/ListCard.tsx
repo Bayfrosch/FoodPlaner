@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { useRouter } from 'next/navigation';
 
 interface List {
@@ -12,7 +13,7 @@ interface ListCardProps {
   onDelete: (id:  number) => void;
 }
 
-export default function ListCard({ list, onDelete }: ListCardProps) {
+const ListCard = memo(function ListCard({ list, onDelete }: ListCardProps) {
   const router = useRouter();
 
   return (
@@ -55,4 +56,6 @@ export default function ListCard({ list, onDelete }: ListCardProps) {
       </div>
     </div>
   );
-}
+});
+
+export default ListCard;
