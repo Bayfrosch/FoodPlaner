@@ -22,6 +22,7 @@ interface RecipeCardProps {
 
 export default function RecipeCard({ recipe, shoppingLists, onDelete, onEdit }: RecipeCardProps) {
   const [expanded, setExpanded] = useState(false);
+  const [descriptionExpanded, setDescriptionExpanded] = useState(false);
   const [selectedListId, setSelectedListId] = useState<number | null>(null);
   const [adding, setAdding] = useState(false);
   const [error, setError] = useState('');
@@ -89,7 +90,19 @@ export default function RecipeCard({ recipe, shoppingLists, onDelete, onEdit }: 
 
       {/* Description */}
       {recipe.description && (
-        <p className="text-gray-300 text-sm mb-4 line-clamp-2">{recipe.description}</p>
+        <div>
+          <div className={`text-gray-300 text-sm mb-2 whitespace-pre-wrap ${!descriptionExpanded ? 'line-clamp-2' : ''}`}>
+            {recipe.description}
+          </div>
+          {recipe.description.split('\n').length > 2 && (
+            <button
+              onClick={() => setDescriptionExpanded(!descriptionExpanded)}
+              className="text-purple-400 hover:text-purple-300 text-xs font-medium mb-4 transition-colors"
+            >
+              {descriptionExpanded ? 'weniger' : 'mehr'}
+            </button>
+          )}
+        </div>
       )}
 
       {/* Items Preview / Expanded */}

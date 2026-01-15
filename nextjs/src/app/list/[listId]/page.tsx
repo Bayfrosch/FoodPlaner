@@ -296,61 +296,62 @@ export default function ListDetailPage() {
         <div className="min-h-screen bg-[#0a0a0f] flex flex-col">
             {/* Header */}
             <header className="bg-gradient-to-b from-[#14141f] to-transparent border-b border-[#2d2d3f]/50">
-                <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6">
-                    <div className="flex justify-between items-center mb-4">
+                <div className="max-w-4xl mx-auto px-3 sm:px-6 py-4 sm:py-6">
+                    <div className="flex justify-between items-center gap-2 sm:gap-4 mb-3 sm:mb-4">
                         <button
                             onClick={() => router.push('/dashboard')}
-                            className="inline-flex items-center gap-2 text-purple-400 hover:text-purple-300 text-sm font-medium transition-all group"
+                            className="inline-flex items-center gap-1 sm:gap-2 text-purple-400 hover:text-purple-300 text-xs sm:text-sm font-medium transition-all group flex-shrink-0"
                         >
                             <svg className="w-4 h-4 group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                             </svg>
-                            Zurück zu Listen
+                            <span className="hidden sm:inline">Zurück zu Listen</span>
+                            <span className="sm:hidden">Zurück</span>
                         </button>
-                        <div className="flex gap-3">
+                        <div className="flex gap-1 sm:gap-3 flex-shrink-0">
                             {currentUserCollaborator && currentUserCollaborator.status === 'pending' && (
                                 <button
                                     onClick={handleAcceptInvitation}
-                                    className="inline-flex items-center gap-2 text-green-400 hover:text-green-300 text-sm font-medium transition-all group"
+                                    className="inline-flex items-center gap-1 sm:gap-2 text-green-400 hover:text-green-300 text-xs sm:text-sm font-medium transition-all group"
                                     title="Einladung akzeptieren"
                                 >
                                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                                     </svg>
-                                    Akzeptieren
+                                    <span className="hidden sm:inline">Akzeptieren</span>
                                 </button>
                             )}
                             {currentUserCollaborator && !userRole.isOwner && (
                                 <button
                                     onClick={handleLeaveList}
-                                    className="inline-flex items-center gap-2 text-red-400 hover:text-red-300 text-sm font-medium transition-all group"
+                                    className="inline-flex items-center gap-1 sm:gap-2 text-red-400 hover:text-red-300 text-xs sm:text-sm font-medium transition-all group"
                                     title="Liste verlassen"
                                 >
                                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                                     </svg>
-                                    Verlassen
+                                    <span className="hidden sm:inline">Verlassen</span>
                                 </button>
                             )}
                             {userRole.isOwner && (
                                 <button
                                     onClick={() => setShowShareModal(true)}
-                                    className="inline-flex items-center gap-2 text-purple-400 hover:text-purple-300 text-sm font-medium transition-all group"
+                                    className="inline-flex items-center gap-1 sm:gap-2 text-purple-400 hover:text-purple-300 text-xs sm:text-sm font-medium transition-all group"
                                     title="Liste teilen"
                                 >
                                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
                                     </svg>
-                                    Teilen
+                                    <span className="hidden sm:inline">Teilen</span>
                                 </button>
                             )}
                         </div>
                     </div>
-                    <div className="flex items-center justify-center gap-4">
-                        <div className="flex-1 text-center max-w-md">
-                            <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent mb-2">{list.title}</h1>
+                    <div className="flex items-center justify-center gap-3 sm:gap-4">
+                        <div className="flex-1 text-center">
+                            <h1 className="text-lg sm:text-3xl font-bold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent mb-1 sm:mb-2 truncate">{list.title}</h1>
                             {list.description && (
-                                <p className="text-gray-400 text-sm">{list.description}</p>
+                                <p className="text-gray-400 text-xs sm:text-sm line-clamp-2">{list.description}</p>
                             )}
                         </div>
                     </div>
@@ -358,23 +359,23 @@ export default function ListDetailPage() {
             </header>
 
             {/* Main Content */}
-            <main className="flex-1 flex flex-col items-center max-w-4xl mx-auto px-4 sm:px-6 py-8 w-full">
+            <main className="flex-1 flex flex-col items-center max-w-4xl mx-auto px-3 sm:px-6 py-4 sm:py-8 w-full">
                 <div className="w-full max-w-3xl">
                 {error && (
-                    <div className="bg-red-500/10 border border-red-500/30 text-red-400 px-4 py-3 rounded-2xl mb-6 flex items-center justify-between backdrop-blur-sm">
-                        <span className="text-sm">{error}</span>
+                    <div className="bg-red-500/10 border border-red-500/30 text-red-400 px-3 sm:px-4 py-2 sm:py-3 rounded-lg sm:rounded-2xl mb-4 sm:mb-6 flex items-center justify-between backdrop-blur-sm">
+                        <span className="text-xs sm:text-sm">{error}</span>
                         <button
                             onClick={() => setError('')}
-                            className="text-red-400 hover:text-red-300 font-bold ml-2"
+                            className="text-red-400 hover:text-red-300 font-bold ml-2 flex-shrink-0"
                         >
-                            Close
+                            ✕
                         </button>
                     </div>
                 )}
 
                 {/* Add Item Form */}
-                <form onSubmit={handleAddItem} className="mb-6">
-                    <div className="flex gap-3">
+                <form onSubmit={handleAddItem} className="mb-4 sm:mb-6 w-full">
+                    <div className="flex gap-2 sm:gap-3">
                         <div className="relative flex-1">
                             <input
                                 type="text"
@@ -382,33 +383,33 @@ export default function ListDetailPage() {
                                 onChange={(e) => setNewItemName(e.target.value)}
                                 placeholder="Neuen Artikel hinzufügen..."
                                 disabled={userRole.isViewer}
-                                className="w-full px-5 py-4 bg-[#14141f] border border-[#2d2d3f] rounded-2xl text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="w-full px-3 sm:px-5 py-3 sm:py-4 bg-[#14141f] border border-[#2d2d3f] rounded-lg sm:rounded-2xl text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-sm"
                             />
                         </div>
                         <button
                             type="submit"
                             disabled={userRole.isViewer}
-                            className="bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white font-bold py-4 px-6 sm:px-8 rounded-2xl transition-all shadow-lg shadow-purple-500/40 hover:shadow-purple-500/60 hover:scale-[1.03] active:scale-95 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                            className="bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white font-bold py-3 sm:py-4 px-3 sm:px-6 rounded-lg sm:rounded-2xl transition-all shadow-lg shadow-purple-500/40 hover:shadow-purple-500/60 hover:scale-[1.03] active:scale-95 flex items-center gap-1 sm:gap-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 flex-shrink-0"
                         >
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                             </svg>
                             <span className="hidden sm:inline">Hinzufügen</span>
                         </button>
                     </div>
                     {userRole.isViewer && (
-                        <p className="text-yellow-500 text-sm mt-2">Du hast nur Zugriff als Zuschauer</p>
+                        <p className="text-yellow-500 text-xs sm:text-sm mt-2">Du hast nur Zugriff als Zuschauer</p>
                     )}
                 </form>
 
                 {/* Items List */}
                 {items.length === 0 ? (
-                    <div className="text-center py-20 bg-gradient-to-br from-[#14141f] to-[#1a1a2e] border border-[#2d2d3f] rounded-2xl">
-                        <h3 className="text-lg font-semibold text-white mb-2">Liste ist leer</h3>
-                        <p className="text-gray-400 text-sm">Füge deinen ersten Artikel hinzu</p>
+                    <div className="text-center py-12 sm:py-20 bg-gradient-to-br from-[#14141f] to-[#1a1a2e] border border-[#2d2d3f] rounded-xl sm:rounded-2xl">
+                        <h3 className="text-base sm:text-lg font-semibold text-white mb-2">Liste ist leer</h3>
+                        <p className="text-gray-400 text-xs sm:text-sm">Füge deinen ersten Artikel hinzu</p>
                     </div>
                 ) : (
-                    <div className="space-y-4">
+                    <div className="space-y-3 sm:space-y-4 w-full">
                         {(() => {
                             // Gruppiere Items nach Kategorie
                             const grouped = items.reduce((acc: any, item) => {

@@ -98,8 +98,8 @@ export default function ProfilePage() {
     return (
       <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center">
         <div className="text-center">
-          <div className="w-12 h-12 border-4 border-purple-500/30 border-t-purple-500 rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-400">Lädt Profil...</p>
+          <div className="w-10 sm:w-12 h-10 sm:h-12 border-4 border-purple-500/30 border-t-purple-500 rounded-full animate-spin mx-auto mb-3 sm:mb-4"></div>
+          <p className="text-xs sm:text-base text-gray-400">Lädt Profil...</p>
         </div>
       </div>
     );
@@ -108,7 +108,7 @@ export default function ProfilePage() {
   if (!user) {
     return (
       <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center">
-        <p className="text-gray-400 text-lg">Profil konnte nicht geladen werden</p>
+        <p className="text-gray-400 text-base sm:text-lg">Profil konnte nicht geladen werden</p>
       </div>
     );
   }
@@ -117,11 +117,11 @@ export default function ProfilePage() {
     <div className="min-h-screen bg-[#0a0a0f] flex flex-col">
       {/* Header */}
       <header className="bg-gradient-to-b from-[#14141f] to-transparent border-b border-[#2d2d3f]/50">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6">
-          <div className="flex justify-between items-center gap-4">
+        <div className="max-w-6xl mx-auto px-3 sm:px-6 py-4 sm:py-6">
+          <div className="flex justify-between items-center gap-2 sm:gap-4">
             <button
               onClick={() => router.push('/dashboard')}
-              className="inline-flex items-center gap-2 text-purple-400 hover:text-purple-300 text-sm font-medium transition-all group flex-shrink-0"
+              className="inline-flex items-center gap-1 sm:gap-2 text-purple-400 hover:text-purple-300 text-xs sm:text-sm font-medium transition-all group flex-shrink-0"
             >
               <svg className="w-4 h-4 group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -129,57 +129,57 @@ export default function ProfilePage() {
               <span className="hidden sm:inline">Zurück zum Dashboard</span>
               <span className="sm:hidden">Zurück</span>
             </button>
-            <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent text-center flex-1">Profil</h1>
+            <h1 className="text-lg sm:text-3xl font-bold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent text-center flex-1">Profil</h1>
             <div className="w-0 sm:w-20"></div>
           </div>
         </div>
       </header>
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col items-center max-w-4xl mx-auto px-4 sm:px-6 py-8 w-full">
+      <main className="flex-1 flex flex-col items-center max-w-4xl mx-auto px-3 sm:px-6 py-4 sm:py-8 w-full">
         <div className="w-full max-w-2xl">
           {/* Benutzerinformationen */}
-          <div className="bg-gradient-to-br from-[#14141f]/90 to-[#1a1a2e]/90 backdrop-blur-sm border border-purple-500/30 rounded-3xl p-8 mb-8 shadow-2xl shadow-purple-500/20">
-            <div className="border-t border-purple-500/20 pt-6">
-              <div className="mb-4">
-                <label className="text-gray-400 text-sm">Benutzername</label>
-                <p className="text-white text-lg font-semibold">{user.username}</p>
+          <div className="bg-gradient-to-br from-[#14141f]/90 to-[#1a1a2e]/90 backdrop-blur-sm border border-purple-500/30 rounded-2xl sm:rounded-3xl p-6 sm:p-8 mb-4 sm:mb-8 shadow-2xl shadow-purple-500/20">
+            <div className="border-t border-purple-500/20 pt-4 sm:pt-6">
+              <div className="mb-3 sm:mb-4">
+                <label className="text-gray-400 text-xs sm:text-sm">Benutzername</label>
+                <p className="text-white text-base sm:text-lg font-semibold">{user.username}</p>
               </div>
               <div>
-                <label className="text-gray-400 text-sm">User ID</label>
-                <p className="text-white text-lg font-semibold">#{user.id}</p>
+                <label className="text-gray-400 text-xs sm:text-sm">User ID</label>
+                <p className="text-white text-base sm:text-lg font-semibold">#{user.id}</p>
               </div>
             </div>
           </div>
 
           {/* Formular zum Ändern von Email und Passwort */}
-          <div className="bg-gradient-to-br from-[#14141f]/90 to-[#1a1a2e]/90 backdrop-blur-sm border border-purple-500/30 rounded-3xl p-8 shadow-2xl shadow-purple-500/20">
-            <h3 className="text-xl font-bold text-white mb-6">Einstellungen ändern</h3>
+          <div className="bg-gradient-to-br from-[#14141f]/90 to-[#1a1a2e]/90 backdrop-blur-sm border border-purple-500/30 rounded-2xl sm:rounded-3xl p-6 sm:p-8 shadow-2xl shadow-purple-500/20">
+            <h3 className="text-lg sm:text-xl font-bold text-white mb-4 sm:mb-6">Einstellungen ändern</h3>
 
             {error && (
-              <div className="bg-red-500/10 border border-red-500/30 text-red-400 px-4 py-3 rounded-2xl mb-6 flex items-center justify-between backdrop-blur-sm">
-                <span className="text-sm">{error}</span>
-                <button onClick={() => setError('')} className="text-red-400 hover:text-red-300">Close</button>
+              <div className="bg-red-500/10 border border-red-500/30 text-red-400 px-3 sm:px-4 py-2 sm:py-3 rounded-lg sm:rounded-2xl mb-4 sm:mb-6 flex items-center justify-between backdrop-blur-sm">
+                <span className="text-xs sm:text-sm">{error}</span>
+                <button onClick={() => setError('')} className="text-red-400 hover:text-red-300 flex-shrink-0">✕</button>
               </div>
             )}
 
             {success && (
-              <div className="bg-green-500/10 border border-green-500/30 text-green-400 px-4 py-3 rounded-2xl mb-6 flex items-center justify-between backdrop-blur-sm">
-                <span className="text-sm">{success}</span>
-                <button onClick={() => setSuccess('')} className="text-green-400 hover:text-green-300">Close</button>
+              <div className="bg-green-500/10 border border-green-500/30 text-green-400 px-3 sm:px-4 py-2 sm:py-3 rounded-lg sm:rounded-2xl mb-4 sm:mb-6 flex items-center justify-between backdrop-blur-sm">
+                <span className="text-xs sm:text-sm">{success}</span>
+                <button onClick={() => setSuccess('')} className="text-green-400 hover:text-green-300 flex-shrink-0">✕</button>
               </div>
             )}
 
-            <form onSubmit={handleUpdateProfile} className="space-y-5">
+            <form onSubmit={handleUpdateProfile} className="space-y-4 sm:space-y-5">
               {/* Email */}
               {/* Aktuelles Passwort */}
               <div>
-                <label className="block text-gray-300 text-sm font-medium mb-2">Aktuelles Passwort (zur Bestätigung)</label>
+                <label className="block text-gray-300 text-xs sm:text-sm font-medium mb-2">Aktuelles Passwort (zur Bestätigung)</label>
                 <input
                   type="password"
                   value={currentPassword}
                   onChange={(e) => setCurrentPassword(e.target.value)}
-                  className="w-full px-4 py-3 bg-[#1a1a2e] border border-purple-500/30 rounded-2xl text-white placeholder-gray-500 focus:outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-500/30 transition-all"
+                  className="w-full px-3 sm:px-4 py-2 sm:py-3 bg-[#1a1a2e] border border-purple-500/30 rounded-lg sm:rounded-2xl text-white placeholder-gray-500 focus:outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-500/30 transition-all text-sm"
                   placeholder="••••••••"
                   required
                 />
@@ -187,12 +187,12 @@ export default function ProfilePage() {
 
               {/* Neues Passwort */}
               <div>
-                <label className="block text-gray-300 text-sm font-medium mb-2">Neues Passwort (optional)</label>
+                <label className="block text-gray-300 text-xs sm:text-sm font-medium mb-2">Neues Passwort (optional)</label>
                 <input
                   type="password"
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
-                  className="w-full px-4 py-3 bg-[#1a1a2e] border border-purple-500/30 rounded-2xl text-white placeholder-gray-500 focus:outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-500/30 transition-all"
+                  className="w-full px-3 sm:px-4 py-2 sm:py-3 bg-[#1a1a2e] border border-purple-500/30 rounded-lg sm:rounded-2xl text-white placeholder-gray-500 focus:outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-500/30 transition-all text-sm"
                   placeholder="••••••••"
                 />
                 {newPassword && (
@@ -203,30 +203,30 @@ export default function ProfilePage() {
               {/* Passwort wiederholen */}
               {newPassword && (
                 <div>
-                  <label className="block text-gray-300 text-sm font-medium mb-2">Passwort wiederholen</label>
+                  <label className="block text-gray-300 text-xs sm:text-sm font-medium mb-2">Passwort wiederholen</label>
                   <input
                     type="password"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
-                    className="w-full px-4 py-3 bg-[#1a1a2e] border border-purple-500/30 rounded-2xl text-white placeholder-gray-500 focus:outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-500/30 transition-all"
+                    className="w-full px-3 sm:px-4 py-2 sm:py-3 bg-[#1a1a2e] border border-purple-500/30 rounded-lg sm:rounded-2xl text-white placeholder-gray-500 focus:outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-500/30 transition-all text-sm"
                     placeholder="••••••••"
                   />
                 </div>
               )}
 
               {/* Buttons */}
-              <div className="flex gap-3 pt-4">
+              <div className="flex gap-2 sm:gap-3 pt-3 sm:pt-4">
                 <button
                   type="button"
                   onClick={() => router.push('/dashboard')}
-                  className="flex-1 px-4 py-3 text-gray-300 bg-[#1a1a2e] border border-purple-500/20 hover:border-purple-500/50 hover:bg-[#14141f] rounded-2xl font-medium transition-all"
+                  className="flex-1 px-3 sm:px-4 py-2 sm:py-3 text-gray-300 bg-[#1a1a2e] border border-purple-500/20 hover:border-purple-500/50 hover:bg-[#14141f] rounded-lg sm:rounded-2xl font-medium transition-all text-xs sm:text-base"
                 >
                   Abbrechen
                 </button>
                 <button
                   type="submit"
                   disabled={isSaving}
-                  className="flex-1 px-4 py-3 text-white bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 disabled:from-gray-600 disabled:to-gray-700 rounded-2xl font-bold transition-all shadow-lg shadow-purple-500/40 hover:shadow-purple-500/60 hover:scale-[1.02] active:scale-95"
+                  className="flex-1 px-3 sm:px-4 py-2 sm:py-3 text-white bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 disabled:from-gray-600 disabled:to-gray-700 rounded-lg sm:rounded-2xl font-bold transition-all shadow-lg shadow-purple-500/40 hover:shadow-purple-500/60 hover:scale-[1.02] active:scale-95 text-xs sm:text-base"
                 >
                   {isSaving ? 'Wird gespeichert...' : 'Änderungen speichern'}
                 </button>
@@ -235,10 +235,10 @@ export default function ProfilePage() {
           </div>
 
           {/* Logout Button */}
-          <div className="mt-8 flex justify-center">
+          <div className="mt-6 sm:mt-8 flex justify-center">
             <button
               onClick={handleLogout}
-              className="px-8 py-3 text-red-400 border border-red-500/30 hover:border-red-500/60 hover:bg-red-500/10 rounded-2xl font-medium transition-all"
+              className="px-6 sm:px-8 py-2 sm:py-3 text-red-400 border border-red-500/30 hover:border-red-500/60 hover:bg-red-500/10 rounded-lg sm:rounded-2xl font-medium transition-all text-xs sm:text-base"
             >
               Abmelden
             </button>
