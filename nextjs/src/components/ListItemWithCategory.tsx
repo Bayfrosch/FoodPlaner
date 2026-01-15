@@ -8,6 +8,7 @@ interface ListItemWithCategoryProps {
   completed: boolean;
   listId: number;
   customCategories: string[];
+  recipeName?: string | null;
   onToggle: (itemId: number, completed: boolean) => void;
   onDelete: (itemId: number) => void;
   onCategoryChange: () => void;
@@ -25,6 +26,7 @@ export default function ListItemWithCategory({
   completed,
   listId,
   customCategories,
+  recipeName,
   onToggle,
   onDelete,
   onCategoryChange,
@@ -108,6 +110,9 @@ export default function ListItemWithCategory({
           >
             {name}
           </span>
+          {recipeName && (
+            <span className="text-xs text-blue-400 block mt-1">Rezept: {recipeName}</span>
+          )}
           {category && (
             <span className="text-xs text-purple-400 block mt-1">{category}</span>
           )}

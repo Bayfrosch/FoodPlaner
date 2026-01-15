@@ -28,7 +28,7 @@ export default function CreateListModal({ onClose, onCreate }: CreateListModalPr
         <div className="p-8">
           <div className="flex items-center gap-3 mb-6">
             <div className="w-12 h-12 bg-gradient-to-br from-purple-500/30 to-purple-700/30 border border-purple-500/50 rounded-2xl flex items-center justify-center">
-              <span className="text-2xl">✨</span>
+              <span className="text-xl font-bold text-purple-400">+</span>
             </div>
             <h2 className="text-2xl font-bold text-white">Neue Liste erstellen</h2>
           </div>

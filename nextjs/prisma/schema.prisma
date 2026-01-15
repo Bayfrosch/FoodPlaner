@@ -47,6 +47,8 @@ model ShoppingListItem {
   name      String
   category  String?
   completed Boolean @default(false)
+  recipeId  Int?    @map("recipe_id")
+  recipeName String? @map("recipe_name")
   createdAt DateTime @default(now()) @map("created_at")
 
   // Beziehungen

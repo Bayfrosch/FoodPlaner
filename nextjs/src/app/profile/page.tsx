@@ -162,14 +162,14 @@ export default function ProfilePage() {
             {error && (
               <div className="bg-red-500/10 border border-red-500/30 text-red-400 px-4 py-3 rounded-2xl mb-6 flex items-center justify-between backdrop-blur-sm">
                 <span className="text-sm">{error}</span>
-                <button onClick={() => setError('')} className="text-red-400 hover:text-red-300">✕</button>
+                <button onClick={() => setError('')} className="text-red-400 hover:text-red-300">Close</button>
               </div>
             )}
 
             {success && (
               <div className="bg-green-500/10 border border-green-500/30 text-green-400 px-4 py-3 rounded-2xl mb-6 flex items-center justify-between backdrop-blur-sm">
                 <span className="text-sm">{success}</span>
-                <button onClick={() => setSuccess('')} className="text-green-400 hover:text-green-300">✕</button>
+                <button onClick={() => setSuccess('')} className="text-green-400 hover:text-green-300">Close</button>
               </div>
             )}
 

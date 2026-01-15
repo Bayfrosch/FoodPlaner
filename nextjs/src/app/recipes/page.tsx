@@ -95,7 +95,7 @@ export default function RecipesPage({ shoppingLists }: RecipesPageProps) {
         <div className="bg-red-500/10 border border-red-500/30 text-red-400 px-4 py-3 rounded-2xl mb-6 flex items-center justify-between">
           <span>{error}</span>
           <button onClick={() => setError('')} className="text-red-400 hover:text-red-300">
-            ✕
+            Close
           </button>
         </div>
       )}

@@ -257,7 +257,7 @@ export default function ListDetailPage() {
                             onClick={() => setError('')}
                             className="text-red-400 hover:text-red-300 font-bold ml-2"
                         >
-                            ✕
+                            Close
                         </button>
                     </div>
                 )}
@@ -340,6 +340,7 @@ export default function ListDetailPage() {
                                                 completed={item.completed}
                                                 listId={Number(listId)}
                                                 customCategories={customCategories}
+                                                recipeName={(item as any).recipeName}
                                                 onToggle={handleToggleItem}
                                                 onDelete={handleDeleteItem}
                                                 onCategoryChange={fetchData}

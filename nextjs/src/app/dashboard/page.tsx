@@ -158,7 +158,7 @@ export default function DashboardPage() {
                 onClick={() => setError('')}
                 className="text-red-400 hover:text-red-300 font-bold ml-2"
                 >
-                ✕
+                Close
                 </button>
             </div>
             )}

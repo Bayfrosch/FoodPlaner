@@ -108,7 +108,7 @@ export default function RecipeModal({ isOpen, onClose, onSave, recipe }: RecipeM
           <div className="bg-red-500/10 border border-red-500/30 text-red-400 px-4 py-3 rounded-2xl mb-6 flex items-center justify-between">
             <span className="text-sm">{error}</span>
             <button onClick={() => setError('')} className="text-red-400 hover:text-red-300">
-              ✕
+              Close
             </button>
           </div>
         )}
@@ -186,7 +186,7 @@ export default function RecipeModal({ isOpen, onClose, onSave, recipe }: RecipeM
                   onClick={() => handleRemoveItem(index)}
                   className="text-red-400 hover:text-red-300 transition-colors"
                 >
-                  ✕
+                  Remove
                 </button>
               </div>
             ))}

@@ -82,7 +82,9 @@ export async function POST(
             listId,
             name: item.name,
             category: item.category || null,
-            completed: false
+            completed: false,
+            recipeId: recipe.id,
+            recipeName: recipe.title
           }
         })
       )

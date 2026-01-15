@@ -105,9 +105,9 @@ export default function ShareListModal({ listId, onClose }: ShareListModalProps)
             <h2 className="text-2xl font-bold text-white">Liste teilen</h2>
             <button
               onClick={onClose}
-              className="text-gray-400 hover:text-gray-300 text-2xl leading-none"
+              className="text-gray-400 hover:text-gray-300 text-lg font-bold"
             >
-              ✕
+              Close
             </button>
           </div>
 
