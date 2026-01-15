@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, memo, useCallback } from 'react';
 import { items as itemsApi, lists } from '../api';
 
 interface ListItemWithCategoryProps {
@@ -11,7 +11,7 @@ interface ListItemWithCategoryProps {
   recipeName?: string | null;
   onToggle: (itemId: number, completed: boolean) => void;
   onDelete: (itemId: number) => void;
-  onCategoryChange: () => void;
+  onCategoryChange: (itemId: number, newCategory: string | null) => void;
   onAddCategory: (categoryName: string) => void;
   onDeleteCategory: (categoryName: string) => void;
   isViewer?: boolean;
@@ -19,7 +19,7 @@ interface ListItemWithCategoryProps {
 
 const DEFAULT_CATEGORIES: string[] = [];
 
-export default function ListItemWithCategory({
+const ListItemWithCategory = memo(function ListItemWithCategory({
   id,
   name,
   category,
@@ -60,27 +60,34 @@ export default function ListItemWithCategory({
     return () => document.removeEventListener('click', handleClickOutside);
   }, [showCategoryMenu]);
 
-  const handleCategorySelect = async (newCategory: string | null) => {
+  const handleCategorySelect = useCallback(async (newCategory: string | null) => {
+    // Optimistic update - immediately update UI
+    onCategoryChange(id, newCategory);
+    setShowCategoryMenu(false);
+    setNewCategoryInput('');
+    
     setUpdatingCategory(true);
     try {
-      await itemsApi.updateCategory(listId, id, newCategory);
-      // Also sync the category mapping for this item name
-      await lists.syncCategory(listId, name, newCategory);
-      setShowCategoryMenu(false);
-      setNewCategoryInput('');
-      onCategoryChange();
+      // Fire API calls in background - don't wait for them
+      await Promise.all([
+        itemsApi.updateCategory(listId, id, newCategory),
+        lists.syncCategory(listId, name, newCategory)
+      ]);
     } catch (err) {
       console.error('Fehler beim Aktualisieren der Kategorie:', err);
+      // Rollback on error
+      onCategoryChange(id, category);
     } finally {
       setUpdatingCategory(false);
     }
-  };
+  }, [id, listId, name, category, onCategoryChange]);
 
-  const handleAddNewCategory = async () => {
+  const handleAddNewCategory = useCallback(async () => {
     if (!newCategoryInput.trim()) return;
-    await handleCategorySelect(newCategoryInput.trim());
-    onAddCategory(newCategoryInput.trim());
-  };
+    const categoryToAdd = newCategoryInput.trim();
+    onAddCategory(categoryToAdd);
+    await handleCategorySelect(categoryToAdd);
+  }, [newCategoryInput, onAddCategory, handleCategorySelect]);
 
   const allCategories = [...DEFAULT_CATEGORIES, ...customCategories];
   const uniqueCategories = [...new Set(allCategories)];
@@ -242,4 +249,6 @@ export default function ListItemWithCategory({
       </button>
     </li>
   );
-}
+});
+
+export default ListItemWithCategory;

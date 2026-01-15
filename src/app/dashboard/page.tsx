@@ -76,22 +76,46 @@ export default function DashboardPage() {
     };
 
     const handleCreateList = async (title: string, description: string) => {
+        // Optimistic update - add placeholder list immediately
+        const tempId = -Date.now();
+        const tempList: List = {
+            id: tempId,
+            title,
+            description,
+            createdAt: new Date().toISOString(),
+        };
+        setUserLists(prev => [...prev, tempList]);
+        setShowModal(false);
+
         try {
-            await lists.create(title,description);
-            setShowModal(false);
-            fetchLists();
+            const newList = await lists.create(title, description);
+            // Replace temp list with real one
+            setUserLists(prev => prev.map(list => 
+                list.id === tempId ? newList : list
+            ));
         } catch (err) {
+            // Rollback on error
+            setUserLists(prev => prev.filter(list => list.id !== tempId));
             setError(err instanceof Error ? err.message : 'Fehler beim Erstellen der Liste');
         }
     };
 
     const handleDeleteList = async (id: number) => {
         if (confirm('Liste wirklich Löschen?')) {
+            // Store list for rollback
+            const deletedList = userLists.find(list => list.id === id);
+            
+            // Optimistic update - remove immediately
+            setUserLists(prev => prev.filter(list => list.id !== id));
+
             try {
                 await lists.delete(id);
-                fetchLists();
             } catch (err) {
-                setError(err instanceof Error ? err.message : 'Fehler beim Löschen der Liste')
+                // Rollback on error
+                if (deletedList) {
+                    setUserLists(prev => [...prev, deletedList]);
+                }
+                setError(err instanceof Error ? err.message : 'Fehler beim Löschen der Liste');
             }
         } 
     };

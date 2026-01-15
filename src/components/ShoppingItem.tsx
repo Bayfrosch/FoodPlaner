@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import '../App.css';
 
 interface ShoppingItemProps {
@@ -7,7 +8,7 @@ interface ShoppingItemProps {
     onToggle: () => void;
 }
 
-function ShoppingItem(props: ShoppingItemProps) {
+const ShoppingItem = memo(function ShoppingItem(props: ShoppingItemProps) {
     return (
         <div className="shopping-item-wrapper">
             <div 
@@ -18,6 +19,6 @@ function ShoppingItem(props: ShoppingItemProps) {
             </div>
         </div>
     )
-}
+});
 
 export { ShoppingItem };

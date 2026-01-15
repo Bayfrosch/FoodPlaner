@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useParams } from 'next/navigation';
 import { items as itemsApi, lists, auth, collaborators } from '@/api';
@@ -184,11 +184,29 @@ export default function ListDetailPage() {
             return;
         }
 
+        const tempName = newItemName.trim();
+        setNewItemName('');
+        
+        // Optimistic update - add item immediately to UI
+        const tempId = -Date.now(); // Temporary negative ID
+        const optimisticItem: Item = {
+            id: tempId,
+            name: tempName,
+            category: null,
+            completed: false,
+            created_at: new Date().toISOString(),
+        };
+        setItems(prevItems => [...prevItems, optimisticItem]);
+
         try {
-            await itemsApi.create(Number(listId), newItemName);
-            setNewItemName('');
-            fetchData();
+            const newItem = await itemsApi.create(Number(listId), tempName);
+            // Replace temporary item with real one
+            setItems(prevItems => prevItems.map(item => 
+                item.id === tempId ? newItem : item
+            ));
         } catch (err) {
+            // Rollback on error
+            setItems(prevItems => prevItems.filter(item => item.id !== tempId));
             const errorMessage = err instanceof Error ? err.message : 'Fehler beim Hinzufügen';
             if (errorMessage.includes('Forbidden')) {
                 setError('Du darfst diese Liste nicht bearbeiten');
@@ -198,45 +216,113 @@ export default function ListDetailPage() {
         }
     };
 
-    const handleToggleItem = async (itemId: number, completed: boolean) => {
+    const handleToggleItem = useCallback(async (itemId: number, completed: boolean) => {
         if (!listId) return;
+
+        // Optimistic update - toggle immediately in UI
+        setItems(prevItems => prevItems.map(item =>
+            item.id === itemId ? { ...item, completed: !completed } : item
+        ));
 
         try {
             await itemsApi.update(Number(listId), itemId, !completed);
-            fetchData();
         } catch (err) {
+            // Rollback on error
+            setItems(prevItems => prevItems.map(item =>
+                item.id === itemId ? { ...item, completed: completed } : item
+            ));
             setError(err instanceof Error ? err.message : 'Fehler beim Aktualisieren');
         }
-    };
+    }, [listId]);
 
-    const handleDeleteItem = async (itemId: number) => {
+    const handleDeleteItem = useCallback(async (itemId: number) => {
         if (!listId) return;
+
+        // Store item for potential rollback
+        const deletedItem = items.find(item => item.id === itemId);
+        
+        // Optimistic update - remove immediately from UI
+        setItems(prevItems => prevItems.filter(item => item.id !== itemId));
 
         try {
             await itemsApi.delete(Number(listId), itemId);
-            fetchData();
         } catch (err) {
+            // Rollback on error
+            if (deletedItem) {
+                setItems(prevItems => [...prevItems, deletedItem]);
+            }
             setError(err instanceof Error ? err.message : 'Fehler beim Löschen');
         }
-    };
+    }, [listId, items]);
 
-    const handleAddCategory = (categoryName: string) => {
+    const handleAddCategory = useCallback((categoryName: string) => {
         if (!customCategories.includes(categoryName)) {
-            setCustomCategories([...customCategories, categoryName]);
+            setCustomCategories(prev => [...prev, categoryName]);
         }
-    };
+    }, [customCategories]);
 
-    const handleDeleteCategory = async (categoryName: string) => {
+    const handleDeleteCategory = useCallback(async (categoryName: string) => {
         if (!listId) return;
+
+        // Optimistic update - remove category immediately
+        setCustomCategories(prev => prev.filter(cat => cat !== categoryName));
 
         try {
             await lists.deleteCategory(Number(listId), categoryName);
-            setCustomCategories(customCategories.filter(cat => cat !== categoryName));
-            fetchData();
+            // Update items to remove this category
+            setItems(prevItems => prevItems.map(item =>
+                item.category === categoryName ? { ...item, category: null } : item
+            ));
         } catch (err) {
+            // Rollback on error
+            setCustomCategories(prev => [...prev, categoryName]);
             setError(err instanceof Error ? err.message : 'Fehler beim Löschen der Kategorie');
         }
-    };
+    }, [listId]);
+
+    // Optimistic category change handler
+    const handleCategoryChange = useCallback((itemId: number, newCategory: string | null) => {
+        setItems(prevItems => prevItems.map(item =>
+            item.id === itemId ? { ...item, category: newCategory } : item
+        ));
+        // Add new category to list if it's new
+        if (newCategory && !customCategories.includes(newCategory)) {
+            setCustomCategories(prev => [...prev, newCategory].sort());
+        }
+    }, [customCategories]);
+
+    // Memoize grouped and sorted items to avoid recomputation on every render
+    const groupedItems = useMemo(() => {
+        const grouped = items.reduce((acc: Record<string, Item[]>, item) => {
+            const cat = item.category || 'Ohne Kategorie';
+            if (!acc[cat]) acc[cat] = [];
+            acc[cat].push(item);
+            return acc;
+        }, {});
+
+        // Sort items within each category (uncompleted first)
+        Object.keys(grouped).forEach((category) => {
+            grouped[category].sort((a: Item, b: Item) => {
+                if (a.completed === b.completed) return 0;
+                return a.completed ? 1 : -1;
+            });
+        });
+
+        // Sort categories by custom order, then alphabetically
+        const sortedCategories = Object.keys(grouped).sort((a, b) => {
+            const aIndex = customCategories.indexOf(a);
+            const bIndex = customCategories.indexOf(b);
+            
+            if (aIndex !== -1 && bIndex !== -1) return aIndex - bIndex;
+            if (aIndex !== -1) return -1;
+            if (bIndex !== -1) return 1;
+            if (a === 'Ohne Kategorie') return 1;
+            if (b === 'Ohne Kategorie') return -1;
+            return a.localeCompare(b);
+        });
+
+        return { grouped, sortedCategories };
+    }, [items, customCategories]);
 
     const handleCategoryDragStart = (e: React.DragEvent<HTMLDivElement>, category: string) => {
         if (userRole.isViewer) return;
@@ -410,89 +496,50 @@ export default function ListDetailPage() {
                     </div>
                 ) : (
                     <div className="space-y-3 sm:space-y-4 w-full">
-                        {(() => {
-                            // Gruppiere Items nach Kategorie
-                            const grouped = items.reduce((acc: any, item) => {
-                                const cat = item.category || 'Ohne Kategorie';
-                                if (!acc[cat]) acc[cat] = [];
-                                acc[cat].push(item);
-                                return acc;
-                            }, {});
-
-                            // Sortiere Items innerhalb jeder Kategorie (nicht erledigte zuerst, erledigte am Ende)
-                            Object.keys(grouped).forEach((category) => {
-                                grouped[category].sort((a: Item, b: Item) => {
-                                    if (a.completed === b.completed) {
-                                        return 0;
-                                    }
-                                    return a.completed ? 1 : -1;
-                                });
-                            });
-
-                            // Sortiere Kategorien nach custom order, dann alphabetisch
-                            const sortedCategories = Object.keys(grouped).sort((a, b) => {
-                                const aIndex = customCategories.indexOf(a);
-                                const bIndex = customCategories.indexOf(b);
-                                
-                                // If both are in custom order, use that order
-                                if (aIndex !== -1 && bIndex !== -1) {
-                                    return aIndex - bIndex;
-                                }
-                                // If only one is in custom order, it goes first
-                                if (aIndex !== -1) return -1;
-                                if (bIndex !== -1) return 1;
-                                
-                                // For categories not in custom order, put "Ohne Kategorie" last
-                                if (a === 'Ohne Kategorie') return 1;
-                                if (b === 'Ohne Kategorie') return -1;
-                                return a.localeCompare(b);
-                            });
-
-                            return sortedCategories.map((category) => (
+                        {groupedItems.sortedCategories.map((category) => (
+                            <div 
+                                key={category} 
+                                className="bg-gradient-to-br from-[#14141f] to-[#1a1a2e] border border-[#2d2d3f] rounded-2xl shadow-xl"
+                                onDragOver={handleCategoryDragOver}
+                                onDrop={(e) => handleCategoryDrop(e, category)}
+                            >
                                 <div 
-                                    key={category} 
-                                    className="bg-gradient-to-br from-[#14141f] to-[#1a1a2e] border border-[#2d2d3f] rounded-2xl shadow-xl"
-                                    onDragOver={handleCategoryDragOver}
-                                    onDrop={(e) => handleCategoryDrop(e, category)}
+                                    draggable={!userRole.isViewer}
+                                    onDragStart={(e) => handleCategoryDragStart(e, category)}
+                                    className={`bg-purple-500/10 border-b border-[#2d2d3f] px-4 py-3 rounded-t-2xl flex items-center gap-3 transition-all ${
+                                        !userRole.isViewer ? 'cursor-move hover:bg-purple-500/20' : ''
+                                    } ${draggedCategory === category ? 'opacity-50 bg-purple-500/30' : ''}`}
+                                    title={userRole.isViewer ? '' : 'Kategorie ziehen zum Umsortieren'}
                                 >
-                                    <div 
-                                        draggable={!userRole.isViewer}
-                                        onDragStart={(e) => handleCategoryDragStart(e, category)}
-                                        className={`bg-purple-500/10 border-b border-[#2d2d3f] px-4 py-3 rounded-t-2xl flex items-center gap-3 transition-all ${
-                                            !userRole.isViewer ? 'cursor-move hover:bg-purple-500/20' : ''
-                                        } ${draggedCategory === category ? 'opacity-50 bg-purple-500/30' : ''}`}
-                                        title={userRole.isViewer ? '' : 'Kategorie ziehen zum Umsortieren'}
-                                    >
-                                        {!userRole.isViewer && (
-                                            <svg className="w-5 h-5 text-gray-500 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
-                                                <path d="M9 3h2v2H9V3zm0 4h2v2H9V7zm0 4h2v2H9v-2zm4-8h2v2h-2V3zm0 4h2v2h-2V7zm0 4h2v2h-2v-2z" />
-                                            </svg>
-                                        )}
-                                        <h3 className="text-sm font-semibold text-purple-400 flex-1">{category}</h3>
-                                    </div>
-                                    <ul className="divide-y divide-[#2d2d3f]">
-                                        {grouped[category].map((item: Item) => (
-                                            <ListItemWithCategory
-                                                key={item.id}
-                                                id={item.id}
-                                                name={item.name}
-                                                category={item.category}
-                                                completed={item.completed}
-                                                listId={Number(listId)}
-                                                customCategories={customCategories}
-                                                recipeName={(item as any).recipeName}
-                                                onToggle={handleToggleItem}
-                                                onDelete={handleDeleteItem}
-                                                onCategoryChange={fetchData}
-                                                onAddCategory={handleAddCategory}
-                                                onDeleteCategory={handleDeleteCategory}
-                                                isViewer={userRole.isViewer}
-                                            />
-                                        ))}
-                                    </ul>
+                                    {!userRole.isViewer && (
+                                        <svg className="w-5 h-5 text-gray-500 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
+                                            <path d="M9 3h2v2H9V3zm0 4h2v2H9V7zm0 4h2v2H9v-2zm4-8h2v2h-2V3zm0 4h2v2h-2V7zm0 4h2v2h-2v-2z" />
+                                        </svg>
+                                    )}
+                                    <h3 className="text-sm font-semibold text-purple-400 flex-1">{category}</h3>
                                 </div>
-                            ));
-                        })()}
+                                <ul className="divide-y divide-[#2d2d3f]">
+                                    {groupedItems.grouped[category].map((item: Item) => (
+                                        <ListItemWithCategory
+                                            key={item.id}
+                                            id={item.id}
+                                            name={item.name}
+                                            category={item.category}
+                                            completed={item.completed}
+                                            listId={Number(listId)}
+                                            customCategories={customCategories}
+                                            recipeName={(item as any).recipeName}
+                                            onToggle={handleToggleItem}
+                                            onDelete={handleDeleteItem}
+                                            onCategoryChange={handleCategoryChange}
+                                            onAddCategory={handleAddCategory}
+                                            onDeleteCategory={handleDeleteCategory}
+                                            isViewer={userRole.isViewer}
+                                        />
+                                    ))}
+                                </ul>
+                            </div>
+                        ))}
                     </div>
                 )}
                 </div>
