@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { items as itemsApi } from '../api';
+import { items as itemsApi, lists } from '../api';
 
 interface ListItemWithCategoryProps {
   id: number;
@@ -62,6 +62,8 @@ export default function ListItemWithCategory({
     setUpdatingCategory(true);
     try {
       await itemsApi.updateCategory(listId, id, newCategory);
+      // Also sync the category mapping for this item name
+      await lists.syncCategory(listId, name, newCategory);
       setShowCategoryMenu(false);
       setNewCategoryInput('');
       onCategoryChange();

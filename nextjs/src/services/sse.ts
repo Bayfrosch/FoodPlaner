@@ -39,9 +39,13 @@ class SSEService {
     if (this.abortController && !this.isAborting) {
       this.isAborting = true;
       try {
-        this.abortController.abort();
+        // Check if the controller is already aborted before aborting
+        if (this.abortController.signal.aborted === false) {
+          this.abortController.abort();
+        }
       } catch (error) {
         // Ignore abort errors - controller might already be aborted
+        console.debug('[SSE Client] Abort error (expected):', error instanceof Error ? error.message : String(error));
       }
       this.isAborting = false;
     }
@@ -84,6 +88,9 @@ class SSEService {
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
         console.log('[SSE Client] Connection aborted');
+      } else if (error instanceof TypeError && error.message.includes('BodyStreamBuffer')) {
+        // Expected error when stream is aborted while being read
+        console.log('[SSE Client] Stream was aborted during read');
       } else {
         console.error('[SSE Client] Connection error:', error);
         this.handleConnectionError();
@@ -98,6 +105,12 @@ class SSEService {
 
     try {
       while (true) {
+        // Check if we're being aborted
+        if (this.abortController?.signal.aborted) {
+          console.log('[SSE Client] Stream aborted, stopping read');
+          break;
+        }
+
         const { done, value } = await reader.read();
         if (done) {
           console.log('[SSE Client] Stream ended');
@@ -127,10 +140,25 @@ class SSEService {
         }
       }
     } catch (error) {
+      // Check if this is an expected abort error
+      if (error instanceof Error) {
+        if (error.name === 'AbortError' || error.message.includes('aborted')) {
+          console.log('[SSE Client] Stream read aborted');
+          return;
+        } else if (error.message.includes('BodyStreamBuffer')) {
+          console.log('[SSE Client] Stream buffer was aborted (expected)');
+          return;
+        }
+      }
       console.error('[SSE Client] Stream read error:', error);
       this.handleConnectionError();
     } finally {
-      reader.releaseLock();
+      try {
+        reader.releaseLock();
+      } catch (error) {
+        // Ignore errors when releasing reader lock
+        console.debug('[SSE Client] Reader lock release error (expected):', error instanceof Error ? error.message : String(error));
+      }
     }
   }
 
@@ -165,10 +193,12 @@ class SSEService {
     if (this.abortController && !this.isAborting) {
       this.isAborting = true;
       try {
-        this.abortController.abort();
+        if (this.abortController.signal.aborted === false) {
+          this.abortController.abort();
+        }
       } catch (error) {
         // Ignore errors when aborting - controller might already be aborted
-        // This is expected and safe to ignore
+        console.debug('[SSE Client] Disconnect abort error (expected):', error instanceof Error ? error.message : String(error));
       }
       this.isAborting = false;
       this.abortController = null;

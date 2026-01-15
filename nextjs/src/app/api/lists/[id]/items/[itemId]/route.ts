@@ -82,7 +82,14 @@ export async function PUT(
     // Broadcast update to all subscribers
     broadcastListUpdate(listId, {
       type: 'item_updated',
-      item
+      item,
+      // Include category sync information
+      ...(category !== undefined && {
+        category_updated: {
+          itemName: item.name,
+          category
+        }
+      })
     });
 
     return NextResponse.json(item);

@@ -54,8 +54,18 @@ export default function ListDetailPage() {
         // Subscribe to SSE updates for this list
         const listIdNum = Number(listId);
         const unsubscribe = sseService.subscribe(listIdNum, (message) => {
-            // Only refresh on actual data changes
-            if (message.type !== 'connected') {
+            // Handle category updates without full refresh
+            if (message.type === 'category_updated') {
+                console.log(`Category updated for item: ${message.itemName} -> ${message.category}`);
+                // Add category to list if it's new
+                setCustomCategories(prev => {
+                    if (message.category && !prev.includes(message.category)) {
+                        return [...prev, message.category].sort();
+                    }
+                    return prev;
+                });
+            } else if (message.type !== 'connected') {
+                // For other updates, refresh data
                 console.log(`List ${listId} updated - refreshing data`);
                 fetchData();
             }

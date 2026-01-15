@@ -126,7 +126,14 @@ export async function POST(
     // Broadcast update to all subscribers
     broadcastListUpdate(listId, {
       type: 'item_created',
-      item
+      item,
+      // Include category mapping if item has a category
+      ...(itemCategory?.category && {
+        category_updated: {
+          itemName: name,
+          category: itemCategory.category
+        }
+      })
     });
 
     return NextResponse.json(item, { status: 201 });

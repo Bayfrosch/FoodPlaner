@@ -88,11 +88,39 @@ export async function POST(
       )
     );
 
+    // Create ItemCategory mappings for items with categories
+    const categoryUpdates = await Promise.all(
+      recipe.items.map(item => {
+        if (item.category) {
+          return prisma.itemCategory.upsert({
+            where: {
+              listId_itemName: {
+                listId,
+                itemName: item.name
+              }
+            },
+            update: { category: item.category },
+            create: {
+              listId,
+              itemName: item.name,
+              category: item.category
+            }
+          });
+        }
+        return Promise.resolve(null);
+      })
+    );
+
     // Broadcast update to all subscribers
     broadcastListUpdate(listId, {
       type: 'items_added',
       count: createdItems.length,
-      items: createdItems
+      items: createdItems,
+      // Include category updates for items with categories
+      categoryUpdates: categoryUpdates.filter(u => u !== null).map(u => ({
+        itemName: u?.itemName,
+        category: u?.category
+      }))
     });
 
     return NextResponse.json({ 

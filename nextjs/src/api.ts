@@ -109,6 +109,12 @@ export const lists = {
 
   getCategories: (id: number) => apiCall(`/lists/${id}/categories`),
 
+  syncCategory: (id: number, itemName: string, category: string | null) =>
+    apiCall(`/lists/${id}/categories`, {
+      method: 'POST',
+      body: JSON.stringify({ itemName, category }),
+    }),
+
   deleteCategory: (id: number, category: string) =>
     apiCall(`/lists/${id}/categories/${encodeURIComponent(category)}`, { method: 'DELETE' }),
 };
