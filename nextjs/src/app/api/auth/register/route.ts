@@ -4,7 +4,28 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 
 const prisma = new PrismaClient();
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+const JWT_SECRET = process.env.JWT_SECRET;
+
+if (!JWT_SECRET) {
+  throw new Error('JWT_SECRET environment variable is required');
+}
+
+// Passwort-Validierungsfunktion
+function validatePassword(password: string): { valid: boolean; error?: string } {
+  if (password.length < 8) {
+    return { valid: false, error: 'Passwort muss mindestens 8 Zeichen lang sein' };
+  }
+  if (!/[A-Z]/.test(password)) {
+    return { valid: false, error: 'Passwort muss mindestens einen Großbuchstaben enthalten' };
+  }
+  if (!/[a-z]/.test(password)) {
+    return { valid: false, error: 'Passwort muss mindestens einen Kleinbuchstaben enthalten' };
+  }
+  if (!/[0-9]/.test(password)) {
+    return { valid: false, error: 'Passwort muss mindestens eine Ziffer enthalten' };
+  }
+  return { valid: true };
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -13,6 +34,23 @@ export async function POST(req: NextRequest) {
     if (!username || !password) {
       return NextResponse.json(
         { error: 'Benutzername und Passwort erforderlich' },
+        { status: 400 }
+      );
+    }
+
+    // Benutzername-Länge validieren
+    if (username.length < 3 || username.length > 50) {
+      return NextResponse.json(
+        { error: 'Benutzername muss zwischen 3 und 50 Zeichen lang sein' },
+        { status: 400 }
+      );
+    }
+
+    // Passwort validieren
+    const passwordValidation = validatePassword(password);
+    if (!passwordValidation.valid) {
+      return NextResponse.json(
+        { error: passwordValidation.error },
         { status: 400 }
       );
     }

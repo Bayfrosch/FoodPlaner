@@ -3,7 +3,12 @@ const jwt = require('jsonwebtoken');
 const http = require('http');
 
 const PORT = process.env.WEBSOCKET_PORT || 3001;
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+const JWT_SECRET = process.env.JWT_SECRET;
+
+if (!JWT_SECRET) {
+  console.error('ERROR: JWT_SECRET environment variable is required');
+  process.exit(1);
+}
 
 // Create a simple HTTP server for WebSocket
 const server = http.createServer();
