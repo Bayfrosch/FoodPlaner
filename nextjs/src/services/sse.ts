@@ -12,6 +12,7 @@ class SSEService {
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 5;
   private reconnectDelay = 1000;
+  private isAborting = false;
 
   public subscribe(listId: number, callback: SSECallback): () => void {
     this.callbacks.add(callback);
@@ -34,13 +35,15 @@ class SSEService {
   private async connect(listId: number): Promise<void> {
     this.listId = listId;
 
-    // Close existing connection
-    if (this.abortController) {
+    // Close existing connection safely
+    if (this.abortController && !this.isAborting) {
+      this.isAborting = true;
       try {
         this.abortController.abort();
       } catch (error) {
-        // Ignore abort errors
+        // Ignore abort errors - controller might already be aborted
       }
+      this.isAborting = false;
     }
 
     this.abortController = new AbortController();
@@ -159,13 +162,15 @@ class SSEService {
   }
 
   public disconnect(): void {
-    if (this.abortController) {
+    if (this.abortController && !this.isAborting) {
+      this.isAborting = true;
       try {
         this.abortController.abort();
       } catch (error) {
-        // Ignore errors when aborting
-        console.log('[SSE Client] Abort error (expected):', error instanceof Error ? error.message : error);
+        // Ignore errors when aborting - controller might already be aborted
+        // This is expected and safe to ignore
       }
+      this.isAborting = false;
       this.abortController = null;
     }
     this.listId = null;

@@ -298,6 +298,16 @@ export default function ListDetailPage() {
                                 return acc;
                             }, {});
 
+                            // Sortiere Items innerhalb jeder Kategorie (nicht erledigte zuerst, erledigte am Ende)
+                            Object.keys(grouped).forEach((category) => {
+                                grouped[category].sort((a: Item, b: Item) => {
+                                    if (a.completed === b.completed) {
+                                        return 0;
+                                    }
+                                    return a.completed ? 1 : -1;
+                                });
+                            });
+
                             // Sortiere Kategorien (Ohne Kategorie zuletzt)
                             const sortedCategories = Object.keys(grouped).sort((a, b) => {
                                 if (a === 'Ohne Kategorie') return 1;
