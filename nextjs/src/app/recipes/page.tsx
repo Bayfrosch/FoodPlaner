@@ -78,14 +78,14 @@ export default function RecipesPage({ shoppingLists }: RecipesPageProps) {
   return (
     <div>
       {/* Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4 mb-6 sm:mb-8">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4 mb-6 sm:mb-8 relative z-10">
         <div>
           <h2 className="text-lg sm:text-2xl font-bold text-white mb-1 sm:mb-2">Meine Rezepte</h2>
           <p className="text-xs sm:text-base text-gray-400">{allRecipes.length} Rezept(e) verfügbar</p>
         </div>
         <button
           onClick={() => handleOpenModal()}
-          className="px-4 sm:px-6 py-2 sm:py-3 bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white rounded-lg sm:rounded-2xl font-bold transition-all shadow-lg shadow-purple-500/40 hover:scale-[1.02] active:scale-95 text-xs sm:text-base"
+          className="px-4 sm:px-6 py-2 sm:py-3 bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white rounded-lg sm:rounded-2xl font-bold transition-all shadow-lg shadow-purple-500/40 hover:scale-[1.02] active:scale-95 text-xs sm:text-base whitespace-nowrap"
         >
           + Neues Rezept
         </button>

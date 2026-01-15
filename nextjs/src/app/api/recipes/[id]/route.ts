@@ -65,7 +65,7 @@ export async function PUT(
 
     const { id } = await params;
     const recipeId = parseInt(id);
-    const { title, description } = await req.json();
+    const { title, description, items } = await req.json();
 
     const recipe = await prisma.recipe.findUnique({
       where: { id: recipeId }
@@ -85,16 +85,42 @@ export async function PUT(
       );
     }
 
-    const updated = await prisma.recipe.update({
-      where: { id: recipeId },
-      data: {
-        title: title || recipe.title,
-        description: description || recipe.description
-      },
-      include: { items: true }
-    });
+    // If items are provided, delete old items and create new ones
+    if (items && items.length > 0) {
+      // Delete old recipe items
+      await prisma.recipeItem.deleteMany({
+        where: { recipeId }
+      });
 
-    return NextResponse.json(updated);
+      const updated = await prisma.recipe.update({
+        where: { id: recipeId },
+        data: {
+          title: title || recipe.title,
+          description: description || recipe.description,
+          items: {
+            create: items.map((item: any) => ({
+              name: item.name,
+              category: item.category || null
+            }))
+          }
+        },
+        include: { items: true }
+      });
+
+      return NextResponse.json(updated);
+    } else {
+      // Only update title and description
+      const updated = await prisma.recipe.update({
+        where: { id: recipeId },
+        data: {
+          title: title || recipe.title,
+          description: description || recipe.description
+        },
+        include: { items: true }
+      });
+
+      return NextResponse.json(updated);
+    }
   } catch (error) {
     console.error('Update recipe error:', error);
     return NextResponse.json(
@@ -138,6 +164,12 @@ export async function DELETE(
       );
     }
 
+    // Delete associated items first
+    await prisma.recipeItem.deleteMany({
+      where: { recipeId }
+    });
+
+    // Delete recipe
     await prisma.recipe.delete({
       where: { id: recipeId }
     });

@@ -28,9 +28,11 @@ export default function RecipeModal({ isOpen, onClose, onSave, recipe }: RecipeM
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [customCategories, setCustomCategories] = useState<string[]>([]);
+  const [currentRecipeId, setCurrentRecipeId] = useState<number | undefined>();
 
   useEffect(() => {
-    if (recipe) {
+    if (recipe && recipe.id !== currentRecipeId) {
+      setCurrentRecipeId(recipe.id);
       setTitle(recipe.title);
       setDescription(recipe.description);
       setItems(recipe.items || []);
@@ -40,10 +42,10 @@ export default function RecipeModal({ isOpen, onClose, onSave, recipe }: RecipeM
         .map(item => item.category!)
         .filter((cat, idx, self) => self.indexOf(cat) === idx) || [];
       setCustomCategories(cats);
-    } else {
+    } else if (!recipe && isOpen) {
       resetForm();
     }
-  }, [recipe, isOpen]);
+  }, [recipe?.id, isOpen]);
 
   const resetForm = () => {
     setTitle('');
@@ -56,9 +58,12 @@ export default function RecipeModal({ isOpen, onClose, onSave, recipe }: RecipeM
 
   const handleAddItem = () => {
     if (newItemName.trim()) {
-      setItems([...items, { name: newItemName, category: newItemCategory || undefined }]);
+      const newItem = { name: newItemName, category: newItemCategory || undefined };
+      setItems([...items, newItem]);
       setNewItemName('');
       setNewItemCategory('');
+    } else {
+      setError('Bitte einen Zutatnamen eingeben');
     }
   };
 
@@ -82,7 +87,7 @@ export default function RecipeModal({ isOpen, onClose, onSave, recipe }: RecipeM
     setSaving(true);
     try {
       if (recipe) {
-        await recipes.update(recipe.id, title, description);
+        await recipes.update(recipe.id, title, description, items);
       } else {
         await recipes.create(title, description, items);
       }
@@ -142,34 +147,37 @@ export default function RecipeModal({ isOpen, onClose, onSave, recipe }: RecipeM
           <h3 className="text-base md:text-lg font-semibold text-white mb-3 md:mb-4">Zutaten</h3>
 
           {/* Add Item Input */}
-          <div className="flex flex-col md:flex-row gap-2 mb-3 md:mb-4">
-            <input
-              type="text"
-              value={newItemName}
-              onChange={(e) => setNewItemName(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && handleAddItem()}
-              placeholder="Zutat hinzufügen..."
-              className="flex-1 px-3 md:px-4 py-2 md:py-3 text-sm md:text-base bg-[#1a1a2e] border border-purple-500/30 rounded-2xl text-white placeholder-gray-500 focus:outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-500/30 transition-all"
-            />
+          <div className="flex flex-col gap-2 mb-3 md:mb-4">
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={newItemName}
+                onChange={(e) => setNewItemName(e.target.value)}
+                onKeyPress={(e) => e.key === 'Enter' && handleAddItem()}
+                placeholder="Zutat hinzufügen..."
+                className="flex-1 px-3 md:px-4 py-2 md:py-3 text-sm md:text-base bg-[#1a1a2e] border border-purple-500/30 rounded-2xl text-white placeholder-gray-500 focus:outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-500/30 transition-all"
+              />
+              <button
+                type="button"
+                onClick={handleAddItem}
+                className="px-3 md:px-6 py-2 md:py-3 text-sm md:text-base bg-purple-500/20 border border-purple-500/50 hover:bg-purple-500/30 text-purple-400 rounded-2xl font-medium transition-all whitespace-nowrap flex-shrink-0"
+              >
+                + Hinzufügen
+              </button>
+            </div>
             <input
               type="text"
               value={newItemCategory}
               onChange={(e) => setNewItemCategory(e.target.value)}
               placeholder="Kategorie wählen oder eingeben..."
               list="categoryList"
-              className="flex-1 px-3 md:px-4 py-2 md:py-3 text-sm md:text-base bg-[#1a1a2e] border border-purple-500/30 rounded-2xl text-white placeholder-gray-500 focus:outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-500/30 transition-all"
+              className="w-full px-3 md:px-4 py-2 md:py-3 text-sm md:text-base bg-[#1a1a2e] border border-purple-500/30 rounded-2xl text-white placeholder-gray-500 focus:outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-500/30 transition-all"
             />
             <datalist id="categoryList">
               {customCategories.map(cat => (
                 <option key={cat} value={cat} />
               ))}
             </datalist>
-            <button
-              onClick={handleAddItem}
-              className="px-4 md:px-6 py-2 md:py-3 text-sm md:text-base bg-purple-500/20 border border-purple-500/50 hover:bg-purple-500/30 text-purple-400 rounded-2xl font-medium transition-all whitespace-nowrap"
-            >
-              + Hinzufügen
-            </button>
           </div>
 
           {/* Items List */}
@@ -183,10 +191,11 @@ export default function RecipeModal({ isOpen, onClose, onSave, recipe }: RecipeM
                   )}
                 </div>
                 <button
+                  type="button"
                   onClick={() => handleRemoveItem(index)}
-                  className="text-red-400 hover:text-red-300 transition-colors flex-shrink-0 ml-2"
+                  className="text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-all flex-shrink-0 ml-2 px-2 py-1 rounded"
                 >
-                  Remove
+                  ✕
                 </button>
               </div>
             ))}

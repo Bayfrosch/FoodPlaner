@@ -20,7 +20,7 @@ export async function POST(
 
     const { id } = await params;
     const recipeId = parseInt(id);
-    const { listId } = await req.json();
+    const { listId, selectedItemIds } = await req.json();
 
     if (!listId) {
       return NextResponse.json(
@@ -74,9 +74,14 @@ export async function POST(
       );
     }
 
-    // Add all recipe items to the list
+    // Filter items based on selectedItemIds (if provided, otherwise use all)
+    const itemsToAdd = selectedItemIds && selectedItemIds.length > 0
+      ? recipe.items.filter((_, idx) => selectedItemIds.includes(idx))
+      : recipe.items;
+
+    // Add selected recipe items to the list
     const createdItems = await Promise.all(
-      recipe.items.map(item =>
+      itemsToAdd.map(item =>
         prisma.shoppingListItem.create({
           data: {
             listId,
@@ -92,7 +97,7 @@ export async function POST(
 
     // Create ItemCategory mappings for items with categories
     const categoryUpdates = await Promise.all(
-      recipe.items.map(item => {
+      itemsToAdd.map(item => {
         if (item.category) {
           return prisma.itemCategory.upsert({
             where: {

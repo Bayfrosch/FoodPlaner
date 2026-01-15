@@ -205,10 +205,10 @@ export const recipes = {
       body: JSON.stringify({ title, description, items }),
     }),
 
-  update: (id: number, title: string, description: string) =>
+  update: (id: number, title: string, description: string, items?: Array<{ name: string; category?: string }>) =>
     apiCall(`/recipes/${id}`, {
       method: 'PUT',
-      body: JSON.stringify({ title, description }),
+      body: JSON.stringify({ title, description, items }),
     }),
 
   delete: (id: number) =>
@@ -223,9 +223,9 @@ export const recipes = {
   deleteItem: (id: number, itemId: number) =>
     apiCall(`/recipes/${id}/items/${itemId}`, { method: 'DELETE' }),
 
-  addToList: (id: number, listId: number) =>
+  addToList: (id: number, listId: number, selectedItemIds?: number[]) =>
     apiCall(`/recipes/${id}/add-to-list`, {
       method: 'POST',
-      body: JSON.stringify({ listId }),
+      body: JSON.stringify({ listId, selectedItemIds }),
     }),
 };

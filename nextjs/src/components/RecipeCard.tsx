@@ -25,27 +25,33 @@ export default function RecipeCard({ recipe, shoppingLists, onDelete, onEdit }: 
   const [descriptionExpanded, setDescriptionExpanded] = useState(false);
   const [selectedListId, setSelectedListId] = useState<number | null>(null);
   const [adding, setAdding] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [showDropdown, setShowDropdown] = useState(false);
+  const [selectedItems, setSelectedItems] = useState<number[]>([]);
 
   // Ensure items is always an array
   const items = recipe.items || [];
 
+  // Initialize selected items to all items on first render
   const handleAddToList = async () => {
     if (!selectedListId) {
       setError('Bitte wählen Sie eine Liste aus');
       return;
     }
 
+    const itemsToAdd = selectedItems.length > 0 ? selectedItems : items.map((_, idx) => idx);
+
     setAdding(true);
     setError('');
     setSuccess('');
 
     try {
-      await recipes.addToList(recipe.id, selectedListId);
-      setSuccess(`${items.length} Zutat(en) hinzugefügt!`);
+      await recipes.addToList(recipe.id, selectedListId, itemsToAdd);
+      setSuccess(`${itemsToAdd.length} Zutat(en) hinzugefügt!`);
       setSelectedListId(null);
+      setSelectedItems([]);
       setTimeout(() => setSuccess(''), 3000);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Fehler beim Hinzufügen');
@@ -54,13 +60,24 @@ export default function RecipeCard({ recipe, shoppingLists, onDelete, onEdit }: 
     }
   };
 
+  const toggleItemSelection = (index: number) => {
+    setSelectedItems(prev =>
+      prev.includes(index)
+        ? prev.filter(i => i !== index)
+        : [...prev, index]
+    );
+  };
+
   const handleDelete = async () => {
     if (window.confirm(`"${recipe.title}" wirklich löschen?`)) {
+      setDeleting(true);
       try {
         await recipes.delete(recipe.id);
         onDelete();
       } catch (err) {
         console.error('Error deleting recipe:', err);
+        setError(err instanceof Error ? err.message : 'Fehler beim Löschen des Rezepts');
+        setDeleting(false);
       }
     }
   };
@@ -81,9 +98,10 @@ export default function RecipeCard({ recipe, shoppingLists, onDelete, onEdit }: 
           </button>
           <button
             onClick={handleDelete}
-            className="px-3 py-2 bg-red-500/20 border border-red-500/50 hover:bg-red-500/30 text-red-400 rounded-xl text-sm font-medium transition-all"
+            disabled={deleting}
+            className="px-3 py-2 bg-red-500/20 border border-red-500/50 hover:bg-red-500/30 disabled:opacity-50 disabled:cursor-not-allowed text-red-400 rounded-xl text-sm font-medium transition-all"
           >
-            Delete
+            {deleting ? 'Wird gelöscht...' : 'Delete'}
           </button>
         </div>
       </div>
@@ -108,12 +126,24 @@ export default function RecipeCard({ recipe, shoppingLists, onDelete, onEdit }: 
       {/* Items Preview / Expanded */}
       {!expanded && items.length > 0 && (
         <div className="mb-4">
-          <div className="flex gap-2">
-            {items.slice(0, 3).map((item, index) => (
-              <span key={index} className="px-3 py-1 bg-purple-500/20 text-purple-400 text-xs rounded-full border border-purple-500/30">
-                {item.name}
-              </span>
-            ))}
+          <div className="flex flex-wrap gap-2">
+            {items.slice(0, 3).map((item, index) => {
+              const isSelected = selectedItems.length === 0 || selectedItems.includes(index);
+              return (
+                <button
+                  key={index}
+                  onClick={() => toggleItemSelection(index)}
+                  className={`px-3 py-1 text-xs rounded-full border transition-all cursor-pointer ${
+                    isSelected
+                      ? 'bg-purple-500/20 text-purple-400 border-purple-500/30 hover:bg-purple-500/30'
+                      : 'bg-gray-800/30 text-gray-500 border-gray-600/30 hover:bg-gray-800/50'
+                  }`}
+                  title={isSelected ? 'Click to deselect' : 'Click to select'}
+                >
+                  {item.name}
+                </button>
+              );
+            })}
             {items.length > 3 && (
               <span className="px-3 py-1 bg-purple-500/10 text-purple-300 text-xs rounded-full">
                 +{items.length - 3} more
@@ -127,12 +157,29 @@ export default function RecipeCard({ recipe, shoppingLists, onDelete, onEdit }: 
         <div className="mb-4 bg-[#1a1a2e]/50 rounded-2xl p-4">
           <h4 className="text-sm font-semibold text-gray-300 mb-3">Zutaten:</h4>
           <div className="space-y-2">
-            {items.map((item, index) => (
-              <div key={index} className="flex items-center gap-2 text-gray-400 text-sm">
-                <span className="text-purple-400 font-bold">-</span>
-                {item.name}
-              </div>
-            ))}
+            {items.map((item, index) => {
+              const isSelected = selectedItems.length === 0 || selectedItems.includes(index);
+              return (
+                <div
+                  key={index}
+                  className={`flex items-center gap-3 text-sm p-2 rounded-lg transition-all cursor-pointer ${
+                    isSelected
+                      ? 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/30'
+                      : 'bg-gray-800/30 text-gray-500 hover:bg-gray-800/50'
+                  }`}
+                  onClick={() => toggleItemSelection(index)}
+                >
+                  <input
+                    type="checkbox"
+                    checked={isSelected}
+                    onChange={() => toggleItemSelection(index)}
+                    className="w-4 h-4 cursor-pointer accent-purple-500"
+                  />
+                  <span className={`font-bold ${isSelected ? 'text-purple-400' : 'text-gray-600'}`}>-</span>
+                  <span>{item.name}</span>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
@@ -180,7 +227,7 @@ export default function RecipeCard({ recipe, shoppingLists, onDelete, onEdit }: 
               </button>
 
               {showDropdown && (
-                <div className="absolute top-full left-0 right-0 mt-2 bg-[#14141f] border border-purple-500/40 rounded-2xl shadow-2xl z-50 overflow-hidden backdrop-blur-sm animate-in fade-in slide-in-from-top-2 duration-200">
+                <div className="absolute top-full left-0 right-0 mt-2 bg-[#14141f] border border-purple-500/40 rounded-2xl shadow-2xl z-40 overflow-hidden backdrop-blur-sm animate-in fade-in slide-in-from-top-2 duration-200">
                   <div className="max-h-64 overflow-y-auto">
                     {shoppingLists.length === 0 ? (
                       <div className="px-4 py-3 text-gray-400 text-sm text-center">
