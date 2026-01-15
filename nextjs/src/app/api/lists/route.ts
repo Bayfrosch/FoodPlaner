@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import prisma from '@/lib/prisma';
 import { getAuthToken } from '@/lib/auth';
-
-const prisma = new PrismaClient();
 
 export async function GET(req: NextRequest) {
   try {
@@ -52,6 +50,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         { error: 'Title is required' },
         { status: 400 }
+      );
+    }
+
+    // Verify user exists before creating list
+    const user = await prisma.user.findUnique({
+      where: { id: userId }
+    });
+
+    if (!user) {
+      return NextResponse.json(
+        { error: 'User not found' },
+        { status: 404 }
       );
     }
 

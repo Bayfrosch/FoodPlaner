@@ -184,6 +184,11 @@ export const collaborators = {
 
   remove: (listId: number, collaboratorId: number) =>
     apiCall(`/lists/${listId}/collaborators/${collaboratorId}`, { method: 'DELETE' }),
+
+  accept: (listId: number, collaboratorId: number) =>
+    apiCall(`/lists/${listId}/collaborators/${collaboratorId}/accept`, {
+      method: 'POST',
+    }),
 };
 
 // ============================================

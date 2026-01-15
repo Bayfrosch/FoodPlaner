@@ -41,6 +41,17 @@ export default function RegisterPage() {
         }
     };
 
+    if (loading) {
+        return (
+            <div className="min-h-screen bg-gradient-to-br from-[#0a0a0f] via-[#1a1a2e] to-[#0a0a0f] flex items-center justify-center p-4">
+                <div className="text-center">
+                    <div className="w-16 h-16 border-4 border-purple-500/20 border-t-purple-500 rounded-full animate-spin mx-auto mb-4"></div>
+                    <p className="text-gray-400">Wird registriert...</p>
+                </div>
+            </div>
+        );
+    }
+
     return (
     <div className="min-h-screen bg-gradient-to-br from-[#0a0a0f] via-[#1a1a2e] to-[#0a0a0f] flex items-center justify-center p-4">
       <div className="w-full max-w-md">

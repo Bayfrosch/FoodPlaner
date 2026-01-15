@@ -28,6 +28,17 @@ interface UserRole {
     isViewer: boolean;
 }
 
+interface Collaborator {
+    id: number;
+    userId: number;
+    role: string;
+    status: string;
+    user: {
+        id: number;
+        username: string;
+    };
+}
+
 export default function ListDetailPage() {
     const router = useRouter();
     const params = useParams();
@@ -44,6 +55,8 @@ export default function ListDetailPage() {
     const [userRole, setUserRole] = useState<UserRole>({ isOwner: false, isEditor: true, isViewer: false });
     const [draggedCategory, setDraggedCategory] = useState<string | null>(null);
     const [savingCategoryOrder, setSavingCategoryOrder] = useState(false);
+    const [currentUserCollaborator, setCurrentUserCollaborator] = useState<Collaborator | null>(null);
+    const [userId, setUserId] = useState<number | null>(null);
 
     useEffect(() => {
         setIsClient(true);
@@ -90,9 +103,11 @@ export default function ListDetailPage() {
             try {
                 const me = await auth.me();
                 if (me) {
+                    setUserId(me.id);
                     const collabs = await collaborators.getAll(listId_num);
                     const isOwner = listData.ownerId === me.id;
                     const collaborator = collabs?.find((c: any) => c.userId === me.id);
+                    setCurrentUserCollaborator(collaborator || null);
                     const isEditor = collaborator?.role === 'editor';
                     const isViewer = collaborator?.role === 'viewer' || (!isOwner && collaborator?.role !== 'editor');
                     
@@ -130,6 +145,36 @@ export default function ListDetailPage() {
             setLoading(false);
         }
     };
+
+    const handleLeaveList = async () => {
+        if (!listId || !currentUserCollaborator) return;
+
+        if (!confirm('Möchtest du diese Liste wirklich verlassen?')) {
+            return;
+        }
+
+        try {
+            await collaborators.remove(Number(listId), currentUserCollaborator.id);
+            router.push('/dashboard');
+        } catch (err) {
+            const errorMessage = err instanceof Error ? err.message : 'Fehler beim Verlassen der Liste';
+            setError(errorMessage);
+        }
+    };
+
+    const handleAcceptInvitation = async () => {
+        if (!listId || !currentUserCollaborator) return;
+
+        try {
+            const updated = await collaborators.accept(Number(listId), currentUserCollaborator.id);
+            setCurrentUserCollaborator(updated);
+            setError('');
+        } catch (err) {
+            const errorMessage = err instanceof Error ? err.message : 'Fehler beim Akzeptieren der Einladung';
+            setError(errorMessage);
+        }
+    };
+
     const handleAddItem = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!newItemName.trim() || !listId) return;
@@ -263,16 +308,42 @@ export default function ListDetailPage() {
                             Zurück zu Listen
                         </button>
                         <div className="flex gap-3">
-                            <button
-                                onClick={() => setShowShareModal(true)}
-                                className="inline-flex items-center gap-2 text-purple-400 hover:text-purple-300 text-sm font-medium transition-all group"
-                                title="Liste teilen"
-                            >
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-                                </svg>
-                                Teilen
-                            </button>
+                            {currentUserCollaborator && currentUserCollaborator.status === 'pending' && (
+                                <button
+                                    onClick={handleAcceptInvitation}
+                                    className="inline-flex items-center gap-2 text-green-400 hover:text-green-300 text-sm font-medium transition-all group"
+                                    title="Einladung akzeptieren"
+                                >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                    </svg>
+                                    Akzeptieren
+                                </button>
+                            )}
+                            {currentUserCollaborator && !userRole.isOwner && (
+                                <button
+                                    onClick={handleLeaveList}
+                                    className="inline-flex items-center gap-2 text-red-400 hover:text-red-300 text-sm font-medium transition-all group"
+                                    title="Liste verlassen"
+                                >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                                    </svg>
+                                    Verlassen
+                                </button>
+                            )}
+                            {userRole.isOwner && (
+                                <button
+                                    onClick={() => setShowShareModal(true)}
+                                    className="inline-flex items-center gap-2 text-purple-400 hover:text-purple-300 text-sm font-medium transition-all group"
+                                    title="Liste teilen"
+                                >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                                    </svg>
+                                    Teilen
+                                </button>
+                            )}
                         </div>
                     </div>
                     <div className="flex items-center justify-center gap-4">

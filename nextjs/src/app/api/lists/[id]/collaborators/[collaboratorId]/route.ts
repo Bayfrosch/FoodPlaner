@@ -87,7 +87,7 @@ export async function DELETE(
     const listId = parseInt(id);
     const collaboratorRecordId = parseInt(collabIdStr);
 
-    // Check if user owns the list
+    // Check if list exists
     const list = await prisma.shoppingList.findUnique({
       where: { id: listId }
     });
@@ -96,13 +96,6 @@ export async function DELETE(
       return NextResponse.json(
         { error: 'List not found' },
         { status: 404 }
-      );
-    }
-
-    if (list.ownerId !== userId) {
-      return NextResponse.json(
-        { error: 'Forbidden' },
-        { status: 403 }
       );
     }
 
@@ -115,6 +108,16 @@ export async function DELETE(
       return NextResponse.json(
         { error: 'Collaborator not found' },
         { status: 404 }
+      );
+    }
+
+    // Allow deletion if:
+    // 1. User is the list owner, OR
+    // 2. User is removing themselves from the list
+    if (list.ownerId !== userId && collaborator.userId !== userId) {
+      return NextResponse.json(
+        { error: 'Forbidden' },
+        { status: 403 }
       );
     }
 

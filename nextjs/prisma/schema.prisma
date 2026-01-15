@@ -62,6 +62,7 @@ model ListCollaborator {
   listId    Int     @map("list_id")
   userId    Int     @map("user_id")
   role      String  @default("viewer")
+  status    String  @default("pending") @map("status")
   createdAt DateTime @default(now()) @map("created_at")
 
   // Beziehungen
