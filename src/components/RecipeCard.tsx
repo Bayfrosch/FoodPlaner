@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { recipes } from '../api';
 import { parseLinks } from '@/lib/linkParser';
 import ShareRecipeModal from './ShareRecipeModal';
@@ -38,6 +39,9 @@ export default function RecipeCard({ recipe, shoppingLists, onDelete, onEdit, cu
   const [showDropdown, setShowDropdown] = useState(false);
   const [selectedItems, setSelectedItems] = useState<number[]>([]);
   const [showShareModal, setShowShareModal] = useState(false);
+  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 0 });
+  const dropdownButtonRef = useRef<HTMLButtonElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   const isOwner = currentUserId && (recipe.ownerId === currentUserId || recipe.owner?.id === currentUserId);
   const userRole = recipe.collaborators && recipe.collaborators.length > 0 ? recipe.collaborators[0].role : null;
@@ -46,6 +50,52 @@ export default function RecipeCard({ recipe, shoppingLists, onDelete, onEdit, cu
 
   // Ensure items is always an array
   const items = recipe.items || [];
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        dropdownRef.current && 
+        !dropdownRef.current.contains(event.target as Node) &&
+        dropdownButtonRef.current &&
+        !dropdownButtonRef.current.contains(event.target as Node)
+      ) {
+        setShowDropdown(false);
+      }
+    };
+
+    if (showDropdown) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [showDropdown]);
+
+  // Update dropdown position when opened
+  useEffect(() => {
+    if (showDropdown && dropdownButtonRef.current) {
+      const rect = dropdownButtonRef.current.getBoundingClientRect();
+      setDropdownPosition({
+        top: rect.bottom + 8,
+        left: rect.left,
+        width: rect.width,
+      });
+
+      // Recalculate on window resize
+      const handleResize = () => {
+        const newRect = dropdownButtonRef.current?.getBoundingClientRect();
+        if (newRect) {
+          setDropdownPosition({
+            top: newRect.bottom + 8,
+            left: newRect.left,
+            width: newRect.width,
+          });
+        }
+      };
+
+      window.addEventListener('resize', handleResize);
+      return () => window.removeEventListener('resize', handleResize);
+    }
+  }, [showDropdown]);
 
   // Initialize selected items to all items on first render
   const handleAddToList = async () => {
@@ -93,6 +143,18 @@ export default function RecipeCard({ recipe, shoppingLists, onDelete, onEdit, cu
         setDeleting(false);
       }
     }
+  };
+
+  const handleDropdownToggle = () => {
+    if (!showDropdown && dropdownButtonRef.current) {
+      const rect = dropdownButtonRef.current.getBoundingClientRect();
+      setDropdownPosition({
+        top: rect.bottom + 8,
+        left: rect.left,
+        width: rect.width,
+      });
+    }
+    setShowDropdown(!showDropdown);
   };
 
   return (
@@ -264,9 +326,10 @@ export default function RecipeCard({ recipe, shoppingLists, onDelete, onEdit, cu
           )}
 
           <div className="flex gap-2">
-            <div className="flex-1 relative z-50">
+            <div className="flex-1 relative">
               <button
-                onClick={() => setShowDropdown(!showDropdown)}
+                ref={dropdownButtonRef}
+                onClick={handleDropdownToggle}
                 className="w-full px-4 py-2 bg-[#1a1a2e] border border-purple-500/30 hover:border-purple-500/60 rounded-xl text-sm text-gray-300 font-medium transition-all flex items-center justify-between group"
               >
                 <span>
@@ -276,9 +339,31 @@ export default function RecipeCard({ recipe, shoppingLists, onDelete, onEdit, cu
                 </span>
                 <span className={`transition-transform duration-300 ${showDropdown ? 'rotate-180' : ''}`}>▼</span>
               </button>
+            </div>
 
-              {showDropdown && (
-                <div className="absolute top-full left-0 right-0 mt-2 bg-[#14141f] border border-purple-500/40 rounded-2xl shadow-2xl z-[100] overflow-hidden backdrop-blur-sm animate-in fade-in slide-in-from-top-2 duration-200">
+            <button
+              onClick={handleAddToList}
+              disabled={!selectedListId || adding}
+              className="px-4 py-2 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 disabled:from-gray-600 disabled:to-gray-700 text-white rounded-xl font-medium text-sm transition-all shadow-lg shadow-green-500/30 hover:shadow-green-500/50 disabled:shadow-none flex items-center gap-2 active:scale-95"
+            >
+              <span className={adding ? 'animate-spin' : ''}>+</span>
+              <span className="hidden sm:inline">{adding ? 'Adding...' : 'Add'}</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Dropdown Portal */}
+      {showDropdown && dropdownButtonRef.current && createPortal(
+        <div 
+          ref={dropdownRef}
+          className="fixed bg-[#14141f] border border-purple-500/40 rounded-2xl shadow-2xl z-[9999] overflow-hidden backdrop-blur-sm animate-in fade-in slide-in-from-top-2 duration-200"
+          style={{
+            top: `${dropdownPosition.top}px`,
+            left: `${dropdownPosition.left}px`,
+            width: `${dropdownPosition.width}px`,
+          }}
+        >
                   <div className="max-h-64 overflow-y-auto">
                     {shoppingLists.length === 0 ? (
                       <div className="px-4 py-3 text-gray-400 text-sm text-center">
@@ -310,20 +395,8 @@ export default function RecipeCard({ recipe, shoppingLists, onDelete, onEdit, cu
                       ))
                     )}
                   </div>
-                </div>
-              )}
-            </div>
-
-            <button
-              onClick={handleAddToList}
-              disabled={!selectedListId || adding}
-              className="px-4 py-2 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 disabled:from-gray-600 disabled:to-gray-700 text-white rounded-xl font-medium text-sm transition-all shadow-lg shadow-green-500/30 hover:shadow-green-500/50 disabled:shadow-none flex items-center gap-2 active:scale-95"
-            >
-              <span className={adding ? 'animate-spin' : ''}>+</span>
-              <span className="hidden sm:inline">{adding ? 'Adding...' : 'Add'}</span>
-            </button>
-          </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
 
