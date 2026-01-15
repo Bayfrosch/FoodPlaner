@@ -6,7 +6,6 @@ import { auth } from '@/api';
 
 export default function RegisterPage() {
     const router = useRouter();
-    const [email, setEmail] = useState('');
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [passwordConfirm, setPasswordConfirm] = useState('');
@@ -30,7 +29,7 @@ export default function RegisterPage() {
         setLoading(true);
 
         try {
-            const data = await auth.register(email, username, password);
+            const data = await auth.register(username, password);
             localStorage.setItem('token',data.token);
             localStorage.setItem('userId',data.userId);
             router.push('/dashboard');
@@ -57,18 +56,6 @@ export default function RegisterPage() {
 
         <div className="bg-gradient-to-br from-[#14141f]/80 to-[#1a1a2e]/80 backdrop-blur-xl border border-purple-500/20 rounded-3xl p-8 shadow-2xl shadow-purple-500/20 hover:shadow-purple-500/30 transition-shadow">
           <form onSubmit={handleSubmit} className="space-y-5">
-            <div>
-              <label className="block text-gray-300 text-sm font-medium mb-2">Email</label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-4 py-3 bg-[#1a1a2e] border border-[#2d2d3f] rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition-all"
-                placeholder="deine@email.com"
-                required
-              />
-            </div>
-
             <div>
               <label className="block text-gray-300 text-sm font-medium mb-2">Benutzername</label>
               <input

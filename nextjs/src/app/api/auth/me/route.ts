@@ -18,7 +18,6 @@ export async function GET(req: NextRequest) {
       where: { id: userId },
       select: {
         id: true,
-        email: true,
         username: true
       }
     });

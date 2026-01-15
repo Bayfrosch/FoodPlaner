@@ -15,7 +15,7 @@ export async function PUT(req: NextRequest) {
       );
     }
 
-    const { email, currentPassword, newPassword } = await req.json();
+    const { currentPassword, newPassword } = await req.json();
 
     // Get current user
     const user = await prisma.user.findUnique({
@@ -38,13 +38,8 @@ export async function PUT(req: NextRequest) {
       );
     }
 
-    // Update email if provided
-    const updateData: any = {};
-    if (email && email !== user.email) {
-      updateData.email = email;
-    }
-
     // Update password if provided
+    const updateData: any = {};
     if (newPassword) {
       updateData.passwordHash = await bcrypt.hash(newPassword, 10);
     }
@@ -54,7 +49,6 @@ export async function PUT(req: NextRequest) {
       data: updateData,
       select: {
         id: true,
-        email: true,
         username: true
       }
     });

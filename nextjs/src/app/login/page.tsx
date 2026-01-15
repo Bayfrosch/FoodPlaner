@@ -6,15 +6,15 @@ import { useRouter } from 'next/navigation';
 
 export default function LoginPage() {
     const router = useRouter();
-    const [email, setEmail] = useState('');
+    const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(false)
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!email || !password) {
-            setError('Please enter both email and password');
+        if (!username || !password) {
+            setError('Benutzername und Passwort erforderlich');
             return;
         }
 
@@ -22,13 +22,9 @@ export default function LoginPage() {
         setError(null);
 
         try {
-            console.log('Attempting login with:', email);
-            const data = await auth.login(email, password);
-            console.log('Login response:', data);
+            const data = await auth.login(username, password);
             localStorage.setItem('token', data.token);
             localStorage.setItem('userId', String(data.userId));
-            console.log('Token saved:', localStorage.getItem('token'));
-            console.log('Navigating to dashboard...');
             setError(null);
             router.push('/dashboard');
         } catch (err) {
@@ -56,13 +52,13 @@ export default function LoginPage() {
         <div className="bg-gradient-to-br from-[#14141f]/80 to-[#1a1a2e]/80 backdrop-blur-xl border border-purple-500/20 rounded-3xl p-8 shadow-2xl shadow-purple-500/20 hover:shadow-purple-500/30 transition-shadow">
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
-              <label className="block text-gray-300 text-sm font-medium mb-2">Email</label>
+              <label className="block text-gray-300 text-sm font-medium mb-2">Benutzername</label>
               <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
                 className="w-full px-4 py-3 bg-[#1a1a2e] border border-[#2d2d3f] rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition-all"
-                placeholder="deine@email.com"
+                placeholder="dein-benutzername"
                 required
               />
             </div>

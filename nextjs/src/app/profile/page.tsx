@@ -6,7 +6,6 @@ import { auth } from '@/api';
 
 interface UserData {
   id: number;
-  email: string;
   username: string;
 }
 
@@ -19,7 +18,6 @@ export default function ProfilePage() {
   const [isClient, setIsClient] = useState(false);
   
   // Form states
-  const [email, setEmail] = useState('');
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -47,7 +45,6 @@ export default function ProfilePage() {
       setLoading(true);
       const data = await auth.me();
       setUser(data);
-      setEmail(data.email);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Fehler beim Laden des Profils');
       console.error(err);
@@ -78,7 +75,7 @@ export default function ProfilePage() {
 
     setIsSaving(true);
     try {
-      await auth.updateProfile(email, currentPassword, newPassword || undefined);
+      await auth.updateProfile(currentPassword, newPassword || undefined);
       setSuccess('Profil erfolgreich aktualisiert!');
       setNewPassword('');
       setConfirmPassword('');
@@ -175,17 +172,6 @@ export default function ProfilePage() {
 
             <form onSubmit={handleUpdateProfile} className="space-y-5">
               {/* Email */}
-              <div>
-                <label className="block text-gray-300 text-sm font-medium mb-2">Email</label>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full px-4 py-3 bg-[#1a1a2e] border border-purple-500/30 rounded-2xl text-white placeholder-gray-500 focus:outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-500/30 transition-all"
-                  required
-                />
-              </div>
-
               {/* Aktuelles Passwort */}
               <div>
                 <label className="block text-gray-300 text-sm font-medium mb-2">Aktuelles Passwort (zur Bestätigung)</label>

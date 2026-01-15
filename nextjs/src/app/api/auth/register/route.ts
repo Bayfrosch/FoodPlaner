@@ -8,23 +8,23 @@ const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 
 export async function POST(req: NextRequest) {
   try {
-    const { email, username, password } = await req.json();
+    const { username, password } = await req.json();
 
-    if (!email || !username || !password) {
+    if (!username || !password) {
       return NextResponse.json(
-        { error: 'Email, username, und password erforderlich' },
+        { error: 'Benutzername und Passwort erforderlich' },
         { status: 400 }
       );
     }
 
-    // Check if email exists
+    // Check if username exists
     const existingUser = await prisma.user.findUnique({
-      where: { email }
+      where: { username }
     });
 
     if (existingUser) {
       return NextResponse.json(
-        { error: 'Email existiert bereits' },
+        { error: 'Benutzername existiert bereits' },
         { status: 400 }
       );
     }
@@ -35,7 +35,6 @@ export async function POST(req: NextRequest) {
     // Create user
     const user = await prisma.user.create({
       data: {
-        email,
         username,
         passwordHash: hashedPassword
       }
@@ -43,7 +42,7 @@ export async function POST(req: NextRequest) {
 
     // Generate JWT
     const token = jwt.sign(
-      { userId: user.id, email: user.email },
+      { userId: user.id, username: user.username },
       JWT_SECRET,
       { expiresIn: '7d' }
     );
@@ -51,7 +50,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       token,
       userId: user.id,
-      email: user.email,
       username: user.username
     });
   } catch (error) {

@@ -60,24 +60,24 @@ export const apiCall = async (
 // AUTH APIs (Login, Register, etc.)
 // ============================================
 export const auth = {
-  register: (email: string, username: string, password: string) =>
+  register: (username: string, password: string) =>
     apiCall('/auth/register', {
       method: 'POST',
-      body: JSON.stringify({ email, username, password }),
+      body: JSON.stringify({ username, password }),
     }),
 
-  login: (email: string, password: string) =>
+  login: (username: string, password: string) =>
     apiCall('/auth/login', {
       method:  'POST',
-      body:  JSON.stringify({ email, password }),
+      body:  JSON.stringify({ username, password }),
     }),
 
   me: () => apiCall('/auth/me'),
 
-  updateProfile: (email: string, currentPassword: string, newPassword?: string) =>
+  updateProfile: (currentPassword: string, newPassword?: string) =>
     apiCall('/auth/profile', {
       method: 'PUT',
-      body: JSON.stringify({ email, currentPassword, newPassword }),
+      body: JSON.stringify({ currentPassword, newPassword }),
     }),
 
   logout: () => {
