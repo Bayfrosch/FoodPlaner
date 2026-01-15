@@ -1,3 +1,0 @@
-{
-  "/api/recipes/[id]/add-to-list/route": "app/api/recipes/[id]/add-to-list/route.js"
-}
