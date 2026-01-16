@@ -51,7 +51,7 @@ export default function ListDetailPage() {
     const [items, setItems] = useState<Item[]>([]);
     const [newItemName, setNewItemName] = useState('');
     const [newItemCount, setNewItemCount] = useState('1');
-    const [loading, setLoading] = useState(false);
+    const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [showShareModal, setShowShareModal] = useState(false);
     const [customCategories, setCustomCategories] = useState<string[]>([]);
@@ -413,6 +413,17 @@ export default function ListDetailPage() {
             setSavingCategoryOrder(false);
         }
     };
+
+    if (loading) {
+        return (
+            <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center">
+                <div className="text-center">
+                    <div className="w-16 h-16 border-4 border-purple-500/30 border-t-purple-500 rounded-full animate-spin mx-auto mb-4"></div>
+                    <p className="text-gray-400 text-lg">Lade Liste...</p>
+                </div>
+            </div>
+        );
+    }
 
     if (!list) {
         return (

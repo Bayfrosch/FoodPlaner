@@ -72,6 +72,7 @@ export default function CategoryManager({
   // Touch handlers for mobile
   const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>, category: string) => {
     if (isViewer) return;
+    e.preventDefault(); // Prevent scrolling while dragging
     const touch = e.touches[0];
     setTouchStart({ y: touch.clientY, category });
     setDraggedItem(category);
