@@ -61,47 +61,7 @@ export default function CategoryManager({
         {orderedCategories.length === 0 ? (
           <p className="text-sm text-gray-500 text-center py-4">Keine Kategorien vorhanden</p>
         ) : (
-          <div className="space-y-2" ref={containerRef}>
-            {orderedCategories.map((category, index) => (
-              <div
-                key={category}
-                draggable={!isViewer}
-                onDragStart={(e) => !isViewer && handleDragStart(e, category)}
-                onDragOver={handleDragOver}
-                onDrop={(e) => !isViewer && handleDrop(e, index)}
-                onTouchStart={(e) => handleTouchStart(e, category)}
-                onTouchMove={handleTouchMove}
-                onTouchEnd={handleTouchEnd}
-                className={`
-                  p-3 bg-[#1a1a2e] border border-[#2d2d3f] rounded-lg
-                  flex items-center gap-3 transition-all
-                  ${!isViewer ? 'cursor-move hover:border-purple-500/50 hover:bg-[#1e1e35] touch-none' : ''}
-                  ${draggedItem === category ? 'opacity-50 border-purple-500 scale-105 shadow-lg shadow-purple-500/20' : ''}
-                  ${isViewer ? 'opacity-60' : ''}
-                `}
-              >
-                {!isViewer && (
-                  <svg className="w-5 h-5 text-gray-500 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M9 3h2v2H9V3zm0 4h2v2H9V7zm0 4h2v2H9v-2zm4-8h2v2h-2V3zm0 4h2v2h-2V7zm0 4h2v2h-2v-2z" />
-                  </svg>
-                )}
-                <span className="text-gray-300 font-medium flex-1">{category}</span>
-                {saving && draggedItem === category && (
-                  <div className="w-4 h-4 border-2 border-purple-500/30 border-t-purple-500 rounded-full animate-spin" />
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      <p className="text-xs text-gray-500 mt-4">
-        {isViewer ? 'Sie können Kategorien nicht sortieren' : 'Ziehen Sie Kategorien, um sie neu zu ordnen'}
-      </p>
-    </div>
-  );
-}
->
+          <div className="space-y-2">
             {orderedCategories.map((category, index) => (
               <div
                 key={category}
@@ -146,4 +106,8 @@ export default function CategoryManager({
       </div>
 
       <p className="text-xs text-gray-500 mt-4">
-        {isViewer ? 'Sie können Kategorien nicht sortieren' : 'Verwenden Sie die Pfeile, um Kategorien
+        {isViewer ? 'Sie können Kategorien nicht sortieren' : 'Verwenden Sie die Pfeile, um Kategorien neu zu ordnen'}
+      </p>
+    </div>
+  );
+}
