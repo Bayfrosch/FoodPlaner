@@ -37,6 +37,7 @@ export default function RecipeCard({ recipe, shoppingLists, onDelete, onEdit, cu
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [showDropdown, setShowDropdown] = useState(false);
+  const [showDropdownAbove, setShowDropdownAbove] = useState(false);
   const [selectedItems, setSelectedItems] = useState<number[]>([]);
   const [showShareModal, setShowShareModal] = useState(false);
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 0 });
@@ -66,7 +67,12 @@ export default function RecipeCard({ recipe, shoppingLists, onDelete, onEdit, cu
 
     if (showDropdown) {
       document.addEventListener('mousedown', handleClickOutside);
-      return () => document.removeEventListener('mousedown', handleClickOutside);
+      // Disable scrolling on body when dropdown is open
+      document.body.style.overflow = 'hidden';
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+        document.body.style.overflow = '';
+      };
     }
   }, [showDropdown]);
 
@@ -77,33 +83,27 @@ export default function RecipeCard({ recipe, shoppingLists, onDelete, onEdit, cu
         if (!dropdownButtonRef.current) return;
         
         const rect = dropdownButtonRef.current.getBoundingClientRect();
-        const dropdownHeight = 280; // max-h-64 = ~256px + padding
+        const dropdownHeight = 280;
         const viewportHeight = window.innerHeight;
         const spaceBelow = viewportHeight - rect.bottom;
         const spaceAbove = rect.top;
         
-        // If not enough space below but more space above, show above
-        const showAbove = spaceBelow < dropdownHeight && spaceAbove > spaceBelow;
+        // Prefer showing below, but show above if not enough space
+        const showAbove = spaceBelow < dropdownHeight && spaceAbove > dropdownHeight + 8;
         
-        setDropdownPosition({
-          top: showAbove ? rect.top - dropdownHeight - 8 : rect.bottom + 8,
-          left: rect.left,
-          width: rect.width,
-        });
+        setShowDropdownAbove(showAbove);
       };
 
       updatePosition();
 
-      // Update on scroll and resize
-      const handleScrollOrResize = () => {
+      // Only update on resize, not on scroll (scroll is disabled when dropdown is open)
+      const handleResize = () => {
         updatePosition();
       };
 
-      window.addEventListener('scroll', handleScrollOrResize, true);
-      window.addEventListener('resize', handleScrollOrResize);
+      window.addEventListener('resize', handleResize);
       return () => {
-        window.removeEventListener('scroll', handleScrollOrResize, true);
-        window.removeEventListener('resize', handleScrollOrResize);
+        window.removeEventListener('resize', handleResize);
       };
     }
   }, [showDropdown]);
@@ -170,7 +170,7 @@ export default function RecipeCard({ recipe, shoppingLists, onDelete, onEdit, cu
 
   return (
     <>
-      <div className="bg-gradient-to-br from-[#14141f]/90 to-[#1a1a2e]/90 backdrop-blur-sm border border-purple-500/30 rounded-3xl p-6 shadow-lg hover:shadow-purple-500/20 transition-all">
+      <div className="bg-gradient-to-br from-[#14141f]/90 to-[#1a1a2e]/90 border border-purple-500/30 rounded-3xl p-6 shadow-lg hover:shadow-purple-500/20 transition-all">
         <div className="flex items-start justify-between gap-4 mb-4">
           <div className="flex-1">
             <h3 className="text-xl font-bold text-white mb-1">{recipe.title}</h3>
@@ -336,8 +336,8 @@ export default function RecipeCard({ recipe, shoppingLists, onDelete, onEdit, cu
             </div>
           )}
 
-          <div className="flex gap-2">
-            <div className="flex-1 relative">
+          <div className="flex gap-2 relative">
+            <div className="flex-1">
               <button
                 ref={dropdownButtonRef}
                 onClick={handleDropdownToggle}
@@ -350,6 +350,48 @@ export default function RecipeCard({ recipe, shoppingLists, onDelete, onEdit, cu
                 </span>
                 <span className={`transition-transform duration-300 ${showDropdown ? 'rotate-180' : ''}`}>▼</span>
               </button>
+
+              {/* Dropdown - inside flex parent with relative positioning */}
+              {showDropdown && (
+                <div 
+                  ref={dropdownRef}
+                  className={`absolute bg-[#14141f] border border-purple-500/40 rounded-2xl shadow-2xl z-[9999] overflow-hidden animate-in fade-in duration-200 left-0 w-full ${
+                    showDropdownAbove ? 'bottom-full mb-2' : 'top-full mt-2'
+                  }`}
+                >
+                          <div className="max-h-64 overflow-y-auto overscroll-contain">
+                            {shoppingLists.length === 0 ? (
+                              <div className="px-4 py-3 text-gray-400 text-sm text-center">
+                                No lists available
+                              </div>
+                            ) : (
+                              shoppingLists.map((list, index) => (
+                                <button
+                                  key={list.id}
+                                  onClick={() => {
+                                    setSelectedListId(list.id);
+                                    setShowDropdown(false);
+                                  }}
+                                  className={`w-full px-4 py-3 text-left text-sm transition-all border-b border-purple-500/10 last:border-b-0 ${
+                                    selectedListId === list.id
+                                      ? 'bg-purple-500/30 text-purple-300 font-medium'
+                                      : 'text-gray-300 hover:bg-purple-500/20 hover:text-purple-300'
+                                  }`}
+                                  style={{
+                                    animation: `slideInUp 0.2s ease-out ${index * 30}ms both`
+                                  }}
+                                >
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-gray-400">List</span>
+                                    <span>{list.title}</span>
+                                    {selectedListId === list.id && <span className="ml-auto text-purple-400 font-bold">Checked</span>}
+                                  </div>
+                                </button>
+                              ))
+                            )}
+                          </div>
+                </div>
+              )}
             </div>
 
             <button
@@ -364,52 +406,6 @@ export default function RecipeCard({ recipe, shoppingLists, onDelete, onEdit, cu
         </div>
       )}
 
-      {/* Dropdown Portal */}
-      {showDropdown && dropdownButtonRef.current && createPortal(
-        <div 
-          ref={dropdownRef}
-          className="fixed bg-[#14141f] border border-purple-500/40 rounded-2xl shadow-2xl z-[9999] overflow-hidden backdrop-blur-sm animate-in fade-in duration-200"
-          style={{
-            top: `${dropdownPosition.top}px`,
-            left: `${dropdownPosition.left}px`,
-            width: `${dropdownPosition.width}px`,
-            maxHeight: 'min(16rem, calc(100vh - 16px))',
-          }}
-        >
-                  <div className="max-h-full overflow-y-auto overscroll-contain">
-                    {shoppingLists.length === 0 ? (
-                      <div className="px-4 py-3 text-gray-400 text-sm text-center">
-                        No lists available
-                      </div>
-                    ) : (
-                      shoppingLists.map((list, index) => (
-                        <button
-                          key={list.id}
-                          onClick={() => {
-                            setSelectedListId(list.id);
-                            setShowDropdown(false);
-                          }}
-                          className={`w-full px-4 py-3 text-left text-sm transition-all border-b border-purple-500/10 last:border-b-0 ${
-                            selectedListId === list.id
-                              ? 'bg-purple-500/30 text-purple-300 font-medium'
-                              : 'text-gray-300 hover:bg-purple-500/20 hover:text-purple-300'
-                          }`}
-                          style={{
-                            animation: `slideInUp 0.2s ease-out ${index * 30}ms both`
-                          }}
-                        >
-                          <div className="flex items-center gap-2">
-                            <span className="text-gray-400">List</span>
-                            <span>{list.title}</span>
-                            {selectedListId === list.id && <span className="ml-auto text-purple-400 font-bold">Checked</span>}
-                          </div>
-                        </button>
-                      ))
-                    )}
-                  </div>
-        </div>,
-        document.body
-      )}
     </div>
 
       {/* Share Modal */}
