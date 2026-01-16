@@ -102,15 +102,36 @@ export default function ListDetailPage() {
             setLoading(true);
             const listId_num = Number(listId)
 
-            const listData = await lists.getById(listId_num);
+            // Fetch all data in parallel for better performance
+            const [listData, itemsData, categoriesData] = await Promise.all([
+                lists.getById(listId_num),
+                itemsApi.getAll(listId_num),
+                lists.getCategories(listId_num).catch(() => null)
+            ]);
+            
             setList(listData);
+            setItems(itemsData);
 
-            // Fetch user info to determine role
+            // Set categories from API or derive from items
+            if (categoriesData) {
+                setCustomCategories(categoriesData);
+            } else {
+                const categories = itemsData
+                    .filter((item: any) => item.category)
+                    .map((item: any) => item.category)
+                    .filter((cat: string, index: number, self: string[]) => self.indexOf(cat) === index);
+                setCustomCategories(categories);
+            }
+
+            // Fetch user info to determine role (can be parallel with other fetches)
             try {
-                const me = await auth.me();
+                const [me, collabs] = await Promise.all([
+                    auth.me(),
+                    collaborators.getAll(listId_num)
+                ]);
+                
                 if (me) {
                     setUserId(me.id);
-                    const collabs = await collaborators.getAll(listId_num);
                     const isOwner = listData.ownerId === me.id;
                     const collaborator = collabs?.find((c: any) => c.userId === me.id);
                     setCurrentUserCollaborator(collaborator || null);
@@ -122,23 +143,6 @@ export default function ListDetailPage() {
             } catch (err) {
                 console.log('Could not fetch user role, assuming editor');
                 setUserRole({ isOwner: false, isEditor: true, isViewer: false });
-            }
-
-            const itemsData = await itemsApi.getAll(listId_num);
-            setItems(itemsData);
-            
-            // Lade alle persistenten Kategorien von diesem List
-            try {
-                const categories = await lists.getCategories(listId_num);
-                setCustomCategories(categories);
-            } catch (err) {
-                // Falls Fehler beim Laden der Kategorien, nutze die aus den Items
-                const categories = itemsData
-                    .filter((item: any) => item.category)
-                    .map((item: any) => item.category)
-                    .filter((cat: string, index: number, self: string[]) => self.indexOf(cat) === index);
-                
-                setCustomCategories(categories);
             }
         } catch (err) {
             const errorMessage = err instanceof Error ? err.message : 'Fehler beim Laden';
@@ -651,21 +655,22 @@ export default function ListDetailPage() {
                             <div 
                                 key={category} 
                                 className="bg-gradient-to-br from-[#14141f] to-[#1a1a2e] border border-[#2d2d3f] rounded-2xl shadow-xl"
-                                onDragOver={handleCategoryDragOver}
-                                onDrop={(e) => handleCategoryDrop(e, category)}
+                                onDragOver={category !== 'Ohne Kategorie' ? handleCategoryDragOver : undefined}
+                                onDrop={category !== 'Ohne Kategorie' ? (e) => handleCategoryDrop(e, category) : undefined}
                             >
                                 <div 
-                                    draggable={!userRole.isViewer}
-                                    onDragStart={(e) => handleCategoryDragStart(e, category)}
-                                    onTouchStart={(e) => handleCategoryTouchStart(e, category)}
-                                    onTouchMove={handleCategoryTouchMove}
-                                    onTouchEnd={handleCategoryTouchEnd}
+                                    draggable={!userRole.isViewer && category !== 'Ohne Kategorie'}
+                                    onDragStart={!userRole.isViewer && category !== 'Ohne Kategorie' ? (e) => handleCategoryDragStart(e, category) : undefined}
+                                    onTouchStart={!userRole.isViewer && category !== 'Ohne Kategorie' ? (e) => handleCategoryTouchStart(e, category) : undefined}
+                                    onTouchMove={category !== 'Ohne Kategorie' ? handleCategoryTouchMove : undefined}
+                                    onTouchEnd={category !== 'Ohne Kategorie' ? handleCategoryTouchEnd : undefined}
+                                    style={category !== 'Ohne Kategorie' ? { touchAction: 'none' } : undefined}
                                     className={`bg-purple-500/10 border-b border-[#2d2d3f] px-4 py-3 rounded-t-2xl flex items-center gap-3 transition-all ${
-                                        !userRole.isViewer ? 'cursor-move hover:bg-purple-500/20' : ''
+                                        !userRole.isViewer && category !== 'Ohne Kategorie' ? 'cursor-move hover:bg-purple-500/20' : ''
                                     } ${draggedCategory === category ? 'opacity-50 bg-purple-500/30 scale-105 shadow-lg shadow-purple-500/20' : ''}`}
-                                    title={userRole.isViewer ? '' : 'Kategorie ziehen zum Umsortieren'}
+                                    title={userRole.isViewer || category === 'Ohne Kategorie' ? '' : 'Kategorie ziehen zum Umsortieren'}
                                 >
-                                    {!userRole.isViewer && (
+                                    {!userRole.isViewer && category !== 'Ohne Kategorie' && (
                                         <svg className="w-5 h-5 text-gray-500 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
                                             <path d="M9 3h2v2H9V3zm0 4h2v2H9V7zm0 4h2v2H9v-2zm4-8h2v2h-2V3zm0 4h2v2h-2V7zm0 4h2v2h-2v-2z" />
                                         </svg>
