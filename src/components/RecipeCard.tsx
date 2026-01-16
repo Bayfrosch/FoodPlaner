@@ -73,27 +73,38 @@ export default function RecipeCard({ recipe, shoppingLists, onDelete, onEdit, cu
   // Update dropdown position when opened
   useEffect(() => {
     if (showDropdown && dropdownButtonRef.current) {
-      const rect = dropdownButtonRef.current.getBoundingClientRect();
-      setDropdownPosition({
-        top: rect.bottom + 8,
-        left: rect.left,
-        width: rect.width,
-      });
-
-      // Recalculate on window resize
-      const handleResize = () => {
-        const newRect = dropdownButtonRef.current?.getBoundingClientRect();
-        if (newRect) {
-          setDropdownPosition({
-            top: newRect.bottom + 8,
-            left: newRect.left,
-            width: newRect.width,
-          });
-        }
+      const updatePosition = () => {
+        if (!dropdownButtonRef.current) return;
+        
+        const rect = dropdownButtonRef.current.getBoundingClientRect();
+        const dropdownHeight = 280; // max-h-64 = ~256px + padding
+        const viewportHeight = window.innerHeight;
+        const spaceBelow = viewportHeight - rect.bottom;
+        const spaceAbove = rect.top;
+        
+        // If not enough space below but more space above, show above
+        const showAbove = spaceBelow < dropdownHeight && spaceAbove > spaceBelow;
+        
+        setDropdownPosition({
+          top: showAbove ? rect.top - dropdownHeight - 8 : rect.bottom + 8,
+          left: rect.left,
+          width: rect.width,
+        });
       };
 
-      window.addEventListener('resize', handleResize);
-      return () => window.removeEventListener('resize', handleResize);
+      updatePosition();
+
+      // Update on scroll and resize
+      const handleScrollOrResize = () => {
+        updatePosition();
+      };
+
+      window.addEventListener('scroll', handleScrollOrResize, true);
+      window.addEventListener('resize', handleScrollOrResize);
+      return () => {
+        window.removeEventListener('scroll', handleScrollOrResize, true);
+        window.removeEventListener('resize', handleScrollOrResize);
+      };
     }
   }, [showDropdown]);
 
@@ -357,14 +368,15 @@ export default function RecipeCard({ recipe, shoppingLists, onDelete, onEdit, cu
       {showDropdown && dropdownButtonRef.current && createPortal(
         <div 
           ref={dropdownRef}
-          className="fixed bg-[#14141f] border border-purple-500/40 rounded-2xl shadow-2xl z-[9999] overflow-hidden backdrop-blur-sm animate-in fade-in slide-in-from-top-2 duration-200"
+          className="fixed bg-[#14141f] border border-purple-500/40 rounded-2xl shadow-2xl z-[9999] overflow-hidden backdrop-blur-sm animate-in fade-in duration-200"
           style={{
             top: `${dropdownPosition.top}px`,
             left: `${dropdownPosition.left}px`,
             width: `${dropdownPosition.width}px`,
+            maxHeight: 'min(16rem, calc(100vh - 16px))',
           }}
         >
-                  <div className="max-h-64 overflow-y-auto">
+                  <div className="max-h-full overflow-y-auto overscroll-contain">
                     {shoppingLists.length === 0 ? (
                       <div className="px-4 py-3 text-gray-400 text-sm text-center">
                         No lists available

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { lists } from '@/api';
 
 interface CategoryManagerProps {
@@ -18,11 +18,15 @@ export default function CategoryManager({
   const [draggedItem, setDraggedItem] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [touchStart, setTouchStart] = useState<{ y: number; category: string } | null>(null);
+  const [touchCurrent, setTouchCurrent] = useState<number | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setOrderedCategories(categories);
   }, [categories]);
 
+  // Mouse drag handlers
   const handleDragStart = (e: React.DragEvent<HTMLDivElement>, category: string) => {
     setDraggedItem(category);
     e.dataTransfer.effectAllowed = 'move';
@@ -65,6 +69,62 @@ export default function CategoryManager({
     }
   };
 
+  // Touch handlers for mobile
+  const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>, category: string) => {
+    if (isViewer) return;
+    const touch = e.touches[0];
+    setTouchStart({ y: touch.clientY, category });
+    setDraggedItem(category);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (!touchStart || isViewer) return;
+    e.preventDefault();
+    const touch = e.touches[0];
+    setTouchCurrent(touch.clientY);
+  };
+
+  const handleTouchEnd = async () => {
+    if (!touchStart || !touchCurrent || !draggedItem || isViewer) {
+      setTouchStart(null);
+      setTouchCurrent(null);
+      setDraggedItem(null);
+      return;
+    }
+
+    const draggedIndex = orderedCategories.indexOf(draggedItem);
+    const itemHeight = containerRef.current?.children[0]?.getBoundingClientRect().height || 60;
+    const movement = touchCurrent - touchStart.y;
+    const indexChange = Math.round(movement / itemHeight);
+    const dropIndex = Math.max(0, Math.min(orderedCategories.length - 1, draggedIndex + indexChange));
+
+    if (draggedIndex !== dropIndex) {
+      const newCategories = [...orderedCategories];
+      newCategories.splice(draggedIndex, 1);
+      newCategories.splice(dropIndex, 0, draggedItem);
+
+      setOrderedCategories(newCategories);
+
+      // Save new order
+      setSaving(true);
+      setError('');
+      try {
+        await lists.updateCategoryOrder(listId, newCategories);
+        onCategoriesReordered(newCategories);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Fehler beim Speichern');
+        // Revert on error
+        setOrderedCategories(categories);
+      } finally {
+        setSaving(false);
+      }
+    }
+
+    setTouchStart(null);
+    setTouchCurrent(null);
+    setDraggedItem(null);
+  };
+
   return (
     <div className="space-y-3">
       {error && (
@@ -78,7 +138,7 @@ export default function CategoryManager({
         {orderedCategories.length === 0 ? (
           <p className="text-sm text-gray-500 text-center py-4">Keine Kategorien vorhanden</p>
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-2" ref={containerRef}>
             {orderedCategories.map((category, index) => (
               <div
                 key={category}
@@ -86,11 +146,14 @@ export default function CategoryManager({
                 onDragStart={(e) => !isViewer && handleDragStart(e, category)}
                 onDragOver={handleDragOver}
                 onDrop={(e) => !isViewer && handleDrop(e, index)}
+                onTouchStart={(e) => handleTouchStart(e, category)}
+                onTouchMove={handleTouchMove}
+                onTouchEnd={handleTouchEnd}
                 className={`
                   p-3 bg-[#1a1a2e] border border-[#2d2d3f] rounded-lg
                   flex items-center gap-3 transition-all
-                  ${!isViewer ? 'cursor-move hover:border-purple-500/50 hover:bg-[#1e1e35]' : ''}
-                  ${draggedItem === category ? 'opacity-50 border-purple-500' : ''}
+                  ${!isViewer ? 'cursor-move hover:border-purple-500/50 hover:bg-[#1e1e35] touch-none' : ''}
+                  ${draggedItem === category ? 'opacity-50 border-purple-500 scale-105 shadow-lg shadow-purple-500/20' : ''}
                   ${isViewer ? 'opacity-60' : ''}
                 `}
               >
