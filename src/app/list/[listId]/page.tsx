@@ -61,6 +61,8 @@ export default function ListDetailPage() {
     const [savingCategoryOrder, setSavingCategoryOrder] = useState(false);
     const [currentUserCollaborator, setCurrentUserCollaborator] = useState<Collaborator | null>(null);
     const [userId, setUserId] = useState<number | null>(null);
+    const [touchStart, setTouchStart] = useState<{ y: number; category: string } | null>(null);
+    const [touchCurrent, setTouchCurrent] = useState<number | null>(null);
 
     useEffect(() => {
         setIsClient(true);
@@ -414,6 +416,86 @@ export default function ListDetailPage() {
         }
     };
 
+    // Touch handlers for mobile
+    const handleCategoryTouchStart = (e: React.TouchEvent<HTMLDivElement>, category: string) => {
+        if (userRole.isViewer) return;
+        const touch = e.touches[0];
+        setTouchStart({ y: touch.clientY, category });
+        setDraggedCategory(category);
+    };
+
+    const handleCategoryTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
+        if (!touchStart || userRole.isViewer) return;
+        const touch = e.touches[0];
+        setTouchCurrent(touch.clientY);
+    };
+
+    const handleCategoryTouchEnd = async () => {
+        if (!touchStart || userRole.isViewer) {
+            setTouchStart(null);
+            setTouchCurrent(null);
+            setDraggedCategory(null);
+            return;
+        }
+
+        const draggedCat = touchStart.category;
+        const currentY = touchCurrent || touchStart.y;
+        
+        // Calculate movement threshold - need at least 30px movement
+        const movement = currentY - touchStart.y;
+        const threshold = 30;
+        
+        if (Math.abs(movement) < threshold) {
+            // Not enough movement, cancel
+            setTouchStart(null);
+            setTouchCurrent(null);
+            setDraggedCategory(null);
+            return;
+        }
+
+        const draggedIndex = customCategories.indexOf(draggedCat);
+        if (draggedIndex === -1) {
+            setTouchStart(null);
+            setTouchCurrent(null);
+            setDraggedCategory(null);
+            return;
+        }
+
+        // Determine new position based on movement direction
+        let newIndex: number;
+        if (movement < 0) {
+            // Moved up
+            newIndex = Math.max(0, draggedIndex - 1);
+        } else {
+            // Moved down
+            newIndex = Math.min(customCategories.length - 1, draggedIndex + 1);
+        }
+
+        if (draggedIndex !== newIndex) {
+            const newCategories = [...customCategories];
+            newCategories.splice(draggedIndex, 1);
+            newCategories.splice(newIndex, 0, draggedCat);
+            
+            setCustomCategories(newCategories);
+
+            // Save to backend
+            setSavingCategoryOrder(true);
+            try {
+                await lists.updateCategoryOrder(Number(listId), newCategories);
+            } catch (err) {
+                // Revert on error
+                setCustomCategories(customCategories);
+                setError(err instanceof Error ? err.message : 'Fehler beim Speichern der Kategorie-Reihenfolge');
+            } finally {
+                setSavingCategoryOrder(false);
+            }
+        }
+
+        setTouchStart(null);
+        setTouchCurrent(null);
+        setDraggedCategory(null);
+    };
+
     if (loading) {
         return (
             <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center">
@@ -565,7 +647,7 @@ export default function ListDetailPage() {
                     </div>
                 ) : (
                     <div className="space-y-3 sm:space-y-4 w-full">
-                        {groupedItems.sortedCategories.map((category) => (
+                        {groupedItems.sortedCategories.map((category, index) => (
                             <div 
                                 key={category} 
                                 className="bg-gradient-to-br from-[#14141f] to-[#1a1a2e] border border-[#2d2d3f] rounded-2xl shadow-xl"
@@ -575,9 +657,12 @@ export default function ListDetailPage() {
                                 <div 
                                     draggable={!userRole.isViewer}
                                     onDragStart={(e) => handleCategoryDragStart(e, category)}
+                                    onTouchStart={(e) => handleCategoryTouchStart(e, category)}
+                                    onTouchMove={handleCategoryTouchMove}
+                                    onTouchEnd={handleCategoryTouchEnd}
                                     className={`bg-purple-500/10 border-b border-[#2d2d3f] px-4 py-3 rounded-t-2xl flex items-center gap-3 transition-all ${
                                         !userRole.isViewer ? 'cursor-move hover:bg-purple-500/20' : ''
-                                    } ${draggedCategory === category ? 'opacity-50 bg-purple-500/30' : ''}`}
+                                    } ${draggedCategory === category ? 'opacity-50 bg-purple-500/30 scale-105 shadow-lg shadow-purple-500/20' : ''}`}
                                     title={userRole.isViewer ? '' : 'Kategorie ziehen zum Umsortieren'}
                                 >
                                     {!userRole.isViewer && (
@@ -586,6 +671,9 @@ export default function ListDetailPage() {
                                         </svg>
                                     )}
                                     <h3 className="text-sm font-semibold text-purple-400 flex-1">{category}</h3>
+                                    {savingCategoryOrder && draggedCategory === category && (
+                                        <div className="w-4 h-4 border-2 border-purple-500/30 border-t-purple-500 rounded-full animate-spin" />
+                                    )}
                                 </div>
                                 <ul className="divide-y divide-[#2d2d3f]">
                                     {groupedItems.grouped[category].map((item: Item) => (
